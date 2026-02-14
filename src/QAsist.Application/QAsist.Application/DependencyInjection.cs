@@ -12,6 +12,9 @@ namespace QAsist.Application
             services.AddAutoMapper(Assembly.GetExecutingAssembly());
 
             services.AddScoped<IProjectService, ProjectService>();
+            services.AddScoped<ITestCaseGeneratorService, TestCaseGeneratorService>();
+            services.AddScoped<IEnvironmentService, EnvironmentService>();
+            services.AddScoped<ITestExecutionService, TestExecutionService>();
 
             return services;
         }

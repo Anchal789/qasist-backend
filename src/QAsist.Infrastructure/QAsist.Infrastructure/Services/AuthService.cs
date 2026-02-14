@@ -143,7 +143,11 @@ namespace QAsist.Infrastructure.Services
 
         private bool VerifyPassword(string password, string passwordHash)
         {
+            if (string.IsNullOrWhiteSpace(passwordHash) || passwordHash.Length != 60)
+                throw new UnauthorizedException(ResponseMessages.InvalidCredentials);
+
             return BCrypt.Net.BCrypt.Verify(password, passwordHash);
         }
+
     }
 }

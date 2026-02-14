@@ -21,10 +21,15 @@ namespace QAsist.Api.Middleware
             var requestMethod = context.Request.Method;
             var correlationId = context.TraceIdentifier;
 
+            // 🔑 Check Authorization header
+            var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+            var hasAuthHeader = !string.IsNullOrWhiteSpace(authHeader);
+
             _logger.LogInformation(
-                "Starting request {Method} {Path} - CorrelationId: {CorrelationId}",
+                "Starting request {Method} {Path} | AuthHeaderPresent={HasAuth} | CorrelationId={CorrelationId}",
                 requestMethod,
                 requestPath,
+                hasAuthHeader,
                 correlationId);
 
             await _next(context);
@@ -32,7 +37,7 @@ namespace QAsist.Api.Middleware
             stopwatch.Stop();
 
             _logger.LogInformation(
-                "Completed request {Method} {Path} - Status: {StatusCode} - Duration: {Duration}ms - CorrelationId: {CorrelationId}",
+                "Completed request {Method} {Path} | Status={StatusCode} | Duration={Duration}ms | CorrelationId={CorrelationId}",
                 requestMethod,
                 requestPath,
                 context.Response.StatusCode,

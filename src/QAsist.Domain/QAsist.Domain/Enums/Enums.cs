@@ -19,4 +19,21 @@
         Developer = 6,
         Viewer = 7
     }
+    public enum TestCasePriority
+    {
+        Low = 1,
+        Medium = 2,
+        High = 3,
+        Critical = 4
+    }
+
+    public enum TestCaseStatus
+    {
+        Draft = 1,
+        Active = 2,
+        Passed = 3,
+        Failed = 4,
+        Skipped = 5,
+        Blocked = 6
+    }
 }
