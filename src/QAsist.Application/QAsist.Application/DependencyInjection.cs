@@ -15,6 +15,7 @@ namespace QAsist.Application
             services.AddScoped<ITestCaseGeneratorService, TestCaseGeneratorService>();
             services.AddScoped<IEnvironmentService, EnvironmentService>();
             services.AddScoped<ITestExecutionService, TestExecutionService>();
+            services.AddScoped<ITestCaseService, TestCaseService>();
 
             return services;
         }

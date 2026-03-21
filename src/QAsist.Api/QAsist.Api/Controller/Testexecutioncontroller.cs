@@ -32,7 +32,7 @@ namespace QAsist.Api.Controllers
         /// Execute a batch of API test cases
         /// </summary>
         [HttpPost("execute")]
-        [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin, UserRole.ProjectManager, UserRole.QALead, UserRole.QAEngineer)]
+        [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin, UserRole.ProjectManager, UserRole.QALead, UserRole.QaEngineer)]
         public async Task<ActionResult<ApiResponse<TestExecutionSummaryDto>>> ExecuteTestCasesAsync(
             [FromBody] ExecuteTestCasesRequestDto request,
             CancellationToken cancellationToken)

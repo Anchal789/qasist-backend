@@ -10,7 +10,10 @@ using Serilog;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(8080);
+});
 // ==========================
 // DAPPER CONFIG
 // ==========================
@@ -170,7 +173,10 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // ? CORS MUST BE BEFORE AUTH + SWAGGER
 app.UseCors("Frontend");

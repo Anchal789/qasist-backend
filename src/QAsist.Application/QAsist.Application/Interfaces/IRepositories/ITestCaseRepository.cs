@@ -6,7 +6,7 @@ namespace QAsist.Application.Interfaces.IRepositories
 {
     public interface ITestCaseRepository
     {
-        // GET Methods
+        // ── GET (all existing — unchanged) ────────────────────────────────────────
         Task<TestCase?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<IEnumerable<TestCase>> GetByProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
         Task<(IEnumerable<TestCase> TestCases, int TotalCount)> GetPagedAsync(Guid projectId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
@@ -14,29 +14,34 @@ namespace QAsist.Application.Interfaces.IRepositories
         Task<IEnumerable<TestCase>> GetAiGeneratedAsync(Guid projectId, CancellationToken cancellationToken = default);
         Task<IEnumerable<TestCase>> GetByAssigneeAsync(Guid userId, CancellationToken cancellationToken = default);
 
-        // CREATE Methods
+        // ── CREATE (existing + no change) ─────────────────────────────────────────
         Task<Guid> CreateAsync(TestCase testCase, Guid userId, CancellationToken cancellationToken = default);
         Task<int> BulkCreateAsync(List<GeneratedTestCaseDto> testCases, Guid projectId, Guid userId, CancellationToken cancellationToken = default);
 
-        // UPDATE Methods
+        // ── UPDATE (existing + no change) ─────────────────────────────────────────
         Task<bool> UpdateAsync(TestCase testCase, Guid userId, CancellationToken cancellationToken = default);
         Task<bool> UpdateStatusAsync(Guid id, TestCaseStatus status, Guid userId, CancellationToken cancellationToken = default);
         Task<bool> AssignAsync(Guid id, Guid assignedTo, Guid userId, CancellationToken cancellationToken = default);
 
-        // DELETE Methods
+        // ── DELETE (existing + no change) ─────────────────────────────────────────
         Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
         Task<int> BulkDeleteByProjectAsync(Guid projectId, Guid userId, CancellationToken cancellationToken = default);
 
-        // STATISTICS Methods
+        // ── STATISTICS (existing + no change) ────────────────────────────────────
         Task<TestCaseStatisticsDto> GetStatisticsAsync(Guid projectId, CancellationToken cancellationToken = default);
         Task<IEnumerable<EndpointCoverageDto>> GetEndpointCoverageAsync(Guid projectId, CancellationToken cancellationToken = default);
 
-        // SEARCH Methods
+        // ── SEARCH (existing + no change) ────────────────────────────────────────
         Task<IEnumerable<TestCase>> SearchAsync(Guid projectId, string searchTerm, CancellationToken cancellationToken = default);
 
-        // HELPER Methods
+        // ── HELPERS (existing + no change) ───────────────────────────────────────
         Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
+
+        // ── NEW: Summary list (lightweight — no steps deserialization) ────────────
+        Task<IEnumerable<TestCase>> GetSummaryByProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
     }
+
+    // ── Kept exactly as you have them ─────────────────────────────────────────────
 
     public class TestCaseStatisticsDto
     {
@@ -53,7 +58,6 @@ namespace QAsist.Application.Interfaces.IRepositories
         public int CriticalPriorityCount { get; set; }
     }
 
-    // Endpoint Coverage DTO
     public class EndpointCoverageDto
     {
         public string Endpoint { get; set; } = string.Empty;

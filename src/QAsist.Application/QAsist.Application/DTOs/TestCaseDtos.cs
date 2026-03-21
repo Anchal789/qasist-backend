@@ -86,10 +86,19 @@ namespace QAsist.Application.DTOs
         public string Method { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
         public List<string> Steps { get; set; } = new();
-        public string ExpectedResult { get; set; } = string.Empty;
+        public string? ExpectedResult { get; set; }          // nullable now (was string)
         public string Priority { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public bool IsAiGenerated { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }              // NEW
+
+        // NEW manual builder fields:
+        public string? RequestHeaders { get; set; }
+        public string? RequestBody { get; set; }
+        public int? ExpectedStatusCode { get; set; }
+        public string? ExpectedBodyContains { get; set; }
+        public int? ExpectedResponseTimeMs { get; set; }
+        public Guid? AssignedTo { get; set; }
     }
 }

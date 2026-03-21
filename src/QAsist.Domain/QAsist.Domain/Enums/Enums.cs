@@ -15,9 +15,9 @@
         Admin = 2,
         ProjectManager = 3,
         QALead = 4,
-        QAEngineer = 5,
+        QaEngineer = 5,
         Developer = 6,
-        Viewer = 7
+        Viewer = 7,
     }
     public enum TestCasePriority
     {

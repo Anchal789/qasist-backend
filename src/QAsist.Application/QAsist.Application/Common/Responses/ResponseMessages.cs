@@ -1,6 +1,5 @@
 ﻿namespace QAsist.Application.Common.Responses
 {
-
     public static class ResponseMessages
     {
         // General
@@ -43,5 +42,13 @@
         public const string InvalidEmail = "Invalid email format.";
         public const string InvalidLength = "{0} must be between {1} and {2} characters.";
         public const string InvalidFormat = "Invalid {0} format.";
+
+        // ── Test Cases (NEW) ──────────────────────────────────────────────────
+        public const string TestCaseCreatedSuccessfully = "Test case created successfully.";
+        public const string TestCaseUpdatedSuccessfully = "Test case updated successfully.";
+        public const string TestCaseDeletedSuccessfully = "Test case deleted successfully.";
+        public const string TestCaseStatusUpdated = "Test case status updated successfully.";
+        public const string TestCaseAssignedSuccessfully = "Test case assigned successfully.";
+        public const string TestCaseNotFound = "Test case not found.";
     }
 }
