@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>QAsist.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <!-- xUnit packages -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk"        Version="17.9.0" />
+    <PackageReference Include="xunit"                          Version="2.7.0" />
+    <PackageReference Include="xunit.runner.visualstudio"      Version="2.5.7">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageReference Include="FluentAssertions"               Version="6.12.0" />
+    <PackageReference Include="Moq"                            Version="4.20.70" />
+  </ItemGroup>
+
+  <!-- Reference your Application project so tests can access services -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\QAsist.Application\QAsist.Application\QAsist.Application.csproj" />
+    <ProjectReference Include="..\..\QAsist.Domain\QAsist.Domain\QAsist.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

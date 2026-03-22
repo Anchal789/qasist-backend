@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<ITestCaseRepository, TestCaseRepository>();
 
+        //services.AddScopped<IExecutionRepository>();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ITestCaseExportService, TestCaseExcelExportService>();
