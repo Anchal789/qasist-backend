@@ -48,3 +48,4 @@ namespace QAsist.Domain.Entities
         public Guid? DeletedBy { get; set; }                // UUID FK → users.id (your table has this)
     }
 }
+

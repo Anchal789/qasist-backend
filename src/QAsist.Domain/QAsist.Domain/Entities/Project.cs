@@ -13,3 +13,4 @@ namespace QAsist.Domain.Entities
         public ProjectStatus Status { get; set; }
     }
 }
+

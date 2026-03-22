@@ -9,7 +9,9 @@ using QAsist.Infrastructure;
 using Serilog;
 using System.Text;
 
+
 var builder = WebApplication.CreateBuilder(args);
+DotNetEnv.Env.Load();
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(8080);
