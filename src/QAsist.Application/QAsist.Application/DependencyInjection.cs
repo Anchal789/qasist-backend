@@ -1,4 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using QAsist.Application.Execution;
+using QAsist.Application.Execution.Assertions.Assertors;
+using QAsist.Application.Execution.Assertions;
+using QAsist.Application.Interfaces.IContext;
+using QAsist.Application.Interfaces.IContext.IAssertions;
 using QAsist.Application.Interfaces.IServices;
 using QAsist.Application.Services;
 using System.Reflection;
@@ -17,6 +22,20 @@ namespace QAsist.Application
             services.AddScoped<ITestExecutionService, TestExecutionService>();
             services.AddScoped<ITestCaseService, TestCaseService>();
 
+            services.AddScoped<IVariableResolver, VariableResolver>();
+            // Register each assertor individually (all implement IAssertor)
+            // AssertionEngine receives IEnumerable<IAssertor> — gets ALL of them
+            services.AddScoped<IAssertor, StatusCodeAssertor>();
+            services.AddScoped<IAssertor, ResponseTimeAssertor>();
+            services.AddScoped<IAssertor, BodyContainsAssertor>();
+            services.AddScoped<IAssertionEngine, AssertionEngine>();
+            services.AddScoped<IAssertor, FieldEqualsAssertor>();
+            services.AddScoped<IAssertor, FieldExistsAssertor>();
+            services.AddScoped<IAssertor, FieldNotExistsAssertor>();
+            services.AddScoped<IAssertor, FieldMatchesRegexAssertor>();
+
+            // ── Assertion Engine facade (registered AFTER all assertors) ──────
+            services.AddScoped<IAssertionEngine, AssertionEngine>();
             return services;
         }
     }
