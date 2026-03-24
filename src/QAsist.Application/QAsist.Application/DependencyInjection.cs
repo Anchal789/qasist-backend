@@ -7,6 +7,7 @@ using QAsist.Application.Interfaces.IContext.IAssertions;
 using QAsist.Application.Interfaces.IServices;
 using QAsist.Application.Services;
 using System.Reflection;
+using QAsist.Application.Execution.Extractions;
 
 namespace QAsist.Application
 {
@@ -36,6 +37,11 @@ namespace QAsist.Application
 
             // ── Assertion Engine facade (registered AFTER all assertors) ──────
             services.AddScoped<IAssertionEngine, AssertionEngine>();
+
+            services.AddScoped<IExtractor, BodyExtractor>();
+            services.AddScoped<IExtractor, HeaderExtractor>();
+            services.AddScoped<IExtractor, StatusCodeExtractor>();
+            services.AddScoped<IExtractionEngine, ExtractionEngine>();
             return services;
         }
     }
