@@ -22,6 +22,7 @@
             public const string Update = "SELECT update_user(@p_id, @p_email, @p_first_name, @p_last_name, @p_role, @p_is_active, @p_updated_by);";
             public const string ExistsByEmail = "SELECT EXISTS(SELECT 1 FROM users WHERE email = @p_email AND is_deleted = false AND (@p_exclude_id IS NULL OR id != @p_exclude_id));";
             public const string UpdateLastLogin = "SELECT update_user_last_login(@p_user_id);";
+            public const string Add = "INSERT INTO users (id, email, first_name, last_name, password_hash, role, created_by) VALUES (@p_id, @p_email, @p_first_name, @p_last_name, @p_password_hash, @p_role, @p_created_by);";
         }
 
         public static class RefreshTokens
