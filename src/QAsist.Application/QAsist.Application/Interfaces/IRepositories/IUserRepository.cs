@@ -10,5 +10,6 @@ namespace QAsist.Application.Interfaces.IRepositories
         Task<bool> UpdateAsync(User user, Guid userId, CancellationToken cancellationToken = default);
         Task<bool> ExistsByEmailAsync(string email, Guid? excludeId = null, CancellationToken cancellationToken = default);
         Task UpdateLastLoginAsync(Guid userId, CancellationToken cancellationToken = default);
+        Task AddAsync(User user);
     }
 }

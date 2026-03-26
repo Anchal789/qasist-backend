@@ -41,4 +41,12 @@ namespace QAsist.Application.DTOs
         public string Password { get; set; } = string.Empty;
         public UserRole Role { get; set; }
     }
+
+    public class RegisterRequestDto
+    {
+        public string Email { get; set; } = null!;
+        public string Password { get; set; } = null!;
+        public string FirstName { get; set; } = null!;
+        public string LastName { get; set; } = null!;
+    }
 }
