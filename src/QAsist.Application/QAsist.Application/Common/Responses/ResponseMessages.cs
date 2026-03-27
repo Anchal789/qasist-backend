@@ -50,5 +50,16 @@
         public const string TestCaseStatusUpdated = "Test case status updated successfully.";
         public const string TestCaseAssignedSuccessfully = "Test case assigned successfully.";
         public const string TestCaseNotFound = "Test case not found.";
+
+
+        public const string TestSuiteCreatedSuccessfully = "Test suite created successfully.";
+        public const string TestSuiteUpdatedSuccessfully = "Test suite updated successfully.";
+        public const string TestSuiteDeletedSuccessfully = "Test suite deleted successfully.";
+        public const string TestSuiteNotFound = "Test suite not found.";
+        public const string ExecutionStarted = "Execution started. Use batchId to poll results.";
+        public const string ExecutionNotFound = "Execution batch not found.";
+        public const string EnvironmentNotFound = "Environment not found.";
+        
+
     }
 }

@@ -54,6 +54,27 @@ namespace QAsist.Infrastructure.Repository
             return (projects, totalCount);
         }
 
+        //public async Task<Guid> CreateAsync(Project project, Guid userId, CancellationToken cancellationToken = default)
+        //{
+        //    using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        //    var parameters = new
+        //    {
+        //        p_id = project.Id,
+        //        p_name = project.Name,
+        //        p_description = project.Description,
+        //        p_code = project.Code,
+        //        p_owner_id = project.OwnerId,
+        //        p_start_date = project.StartDate,
+        //        p_end_date = project.EndDate,
+        //        p_status = project.Status,
+        //        p_created_by = userId
+        //    };
+
+        //    return await connection.ExecuteScalarAsync<Guid>(
+        //        SqlQueries.Projects.Create,
+        //        parameters);
+        //}
         public async Task<Guid> CreateAsync(Project project, Guid userId, CancellationToken cancellationToken = default)
         {
             using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
@@ -67,15 +88,24 @@ namespace QAsist.Infrastructure.Repository
                 p_owner_id = project.OwnerId,
                 p_start_date = project.StartDate,
                 p_end_date = project.EndDate,
-                p_status = project.Status,
+                p_status = (int)project.Status, // IMPORTANT
                 p_created_by = userId
             };
 
-            return await connection.ExecuteScalarAsync<Guid>(
-                SqlQueries.Projects.Create,
-                parameters);
-        }
+            const string sql = @"
+        INSERT INTO projects (
+            id, name, description, code, owner_id,
+            start_date, end_date, status, created_by, created_at
+        )
+        VALUES (
+            @p_id, @p_name, @p_description, @p_code, @p_owner_id,
+            @p_start_date, @p_end_date, @p_status, @p_created_by, NOW()
+        )
+        RETURNING id;
+    ";
 
+            return await connection.ExecuteScalarAsync<Guid>(sql, parameters);
+        }
         public async Task<bool> UpdateAsync(Project project, Guid userId, CancellationToken cancellationToken = default)
         {
             using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
