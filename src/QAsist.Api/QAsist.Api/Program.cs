@@ -55,15 +55,27 @@ builder.Services.AddControllers(options =>
 // ==========================
 // CORS (IMPORTANT)
 // ==========================
+//builder.Services.AddCors(options =>
+//{
+//    options.AddPolicy("Frontend", policy =>
+//    {
+//        policy
+//            .WithOrigins(
+//                "http://localhost:8081",
+//                "https://localhost:8081"
+//            )
+//            .AllowAnyHeader()
+//            .AllowAnyMethod()
+//            .AllowCredentials();
+//    });
+//});
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:8081",
-                "https://localhost:8081"
-            )
+            .SetIsOriginAllowed(_ => true) 
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -171,14 +183,14 @@ var app = builder.Build();
 // ==========================
 // MIDDLEWARE ORDER (CRITICAL)
 // ==========================
-app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseMiddleware<RequestLoggingMiddleware>();
-app.UseMiddleware<GlobalExceptionMiddleware>();
-
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
+
 
 // ? CORS MUST BE BEFORE AUTH + SWAGGER
 app.UseCors("Frontend");

@@ -42,6 +42,8 @@ namespace QAsist.Application
             services.AddScoped<IExtractor, HeaderExtractor>();
             services.AddScoped<IExtractor, StatusCodeExtractor>();
             services.AddScoped<IExtractionEngine, ExtractionEngine>();
+            services.AddScoped<ITestSuiteService, TestSuiteService>();
+            services.AddScoped<IExecutionService, ExecutionService>();
             return services;
         }
     }
