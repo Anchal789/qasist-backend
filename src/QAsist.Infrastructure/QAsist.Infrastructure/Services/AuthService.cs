@@ -131,6 +131,33 @@ namespace QAsist.Infrastructure.Services
             };
         }
 
+        public async Task RegisterAsync(
+        RegisterRequestDto dto,
+        CancellationToken cancellationToken)
+        {
+            // check existing user
+            var existingUser = await _userRepository.GetByEmailAsync(dto.Email);
+            if (existingUser != null)
+                throw new Exception("User already exists");
+
+            // hash password
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+            // create entity
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = dto.Email,
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                PasswordHash = hashedPassword,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            // save
+            await _userRepository.AddAsync(user);
+        }
+
         public async Task LogoutAsync(string sessionId, CancellationToken cancellationToken = default)
         {
             await _refreshTokenRepository.RevokeBySessionIdAsync(sessionId, cancellationToken);

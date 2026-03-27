@@ -98,5 +98,30 @@ namespace QAsist.Infrastructure.Repository
                 SqlQueries.Users.UpdateLastLogin,
                 parameters);
         }
+
+        public async Task<Guid> AddAsync(User user, CancellationToken cancellationToken = default)
+        {
+            using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+            var parameters = new
+            {
+                p_id = user.Id,
+                p_email = user.Email,
+                p_first_name = user.FirstName,
+                p_last_name = user.LastName,
+                p_password_hash = user.PasswordHash,
+                p_role = user.Role,
+                p_created_by = user.CreatedBy
+            };
+
+            return await connection.ExecuteScalarAsync<Guid>(
+                SqlQueries.Users.Add,
+                parameters);
+        }
+
+        public Task AddAsync(User user)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
