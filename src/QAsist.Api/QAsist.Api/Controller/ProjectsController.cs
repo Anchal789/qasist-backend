@@ -21,7 +21,7 @@ namespace QAsist.Api.Controller
             _projectService = projectService;
         }
 
-        [HttpGet("{id:guid}")]
+        [HttpGet("{id:guid}", Name = "GetProjectById")]
         public async Task<ActionResult<ApiResponse<ProjectDto>>> GetByIdAsync(
             Guid id,
             CancellationToken cancellationToken)
@@ -81,10 +81,10 @@ namespace QAsist.Api.Controller
 
             response.CorrelationId = HttpContext.TraceIdentifier;
 
-            return CreatedAtAction(
-                nameof(GetByIdAsync),
-                new { id = project.Id },
-                response);
+            return CreatedAtRoute(
+    "GetProjectById",
+    new { id = project.Id },
+    response);
         }
 
         [HttpPut("{id:guid}")]
