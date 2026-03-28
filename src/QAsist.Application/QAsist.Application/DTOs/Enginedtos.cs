@@ -136,21 +136,63 @@ namespace QAsist.Application.DTOs
             public DateTime? CompletedAt { get; set; }
         }
 
-        public class StepResultDto
+        //public class StepResultDto
+        //{
+        //    public Guid Id { get; set; }
+        //    public Guid BatchId { get; set; }
+        //    public Guid TestStepId { get; set; }
+        //    public string Status { get; set; } = string.Empty;
+        //    public long DurationMs { get; set; }
+        //    public string? ErrorMessage { get; set; }
+        //    public object? RequestLog { get; set; }
+        //    public object? ResponseLog { get; set; }
+        //    public List<AssertionResultDto> AssertionResults { get; set; } = new();
+        //    public Dictionary<string, string> ExtractedVariables { get; set; } = new();
+        //    public DateTime ExecutedAt { get; set; }
+        //}
+
+        public class ExecutionStepResultDto
         {
             public Guid Id { get; set; }
             public Guid BatchId { get; set; }
-            public Guid TestStepId { get; set; }
+
+            // 🔹 Hierarchy
+            public Guid? TestCaseId { get; set; }
+            public Guid? TestStepId { get; set; }
+            public string TestCaseTitle { get; set; } = string.Empty;
+            public int Order { get; set; }
+
+            // 🔹 Info
+            public string Name { get; set; } = string.Empty;
+            public string Endpoint { get; set; } = string.Empty;
+            public string Method { get; set; } = string.Empty;
+
+            // 🔹 Execution
             public string Status { get; set; } = string.Empty;
+            public int? StatusCode { get; set; }
             public long DurationMs { get; set; }
-            public string? ErrorMessage { get; set; }
+            public DateTime ExecutedAt { get; set; }
+            public int? ResponseTimeMs { get; set; }
+            public DateTime StartedAt { get; set; }
+            // 🔹 Request / Response
+            public string? HttpMethod { get; set; }
+            public string? FullUrl { get; set; }
+            public string? RequestBody { get; set; }
+            public string? ResponseBody { get; set; }
+
+            // 🔹 Logs
             public object? RequestLog { get; set; }
             public object? ResponseLog { get; set; }
+
+            // 🔹 Errors
+            public string? ErrorMessage { get; set; }
+            public string? FailureReason { get; set; }
+
+            // 🔹 Assertions & Extraction
             public List<AssertionResultDto> AssertionResults { get; set; } = new();
             public Dictionary<string, string> ExtractedVariables { get; set; } = new();
-            public DateTime ExecutedAt { get; set; }
+            public DateTime? CompletedAt { get; set; }
         }
-
         public class AssertionResultDto
         {
             public string AssertionType { get; set; } = string.Empty;

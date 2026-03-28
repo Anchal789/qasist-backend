@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -8,7 +8,12 @@ using QAsist.Application;
 using QAsist.Infrastructure;
 using Serilog;
 using System.Text;
-
+using QAsist.Infrastructure.Extensions;
+using Hangfire;
+using Hangfire.PostgreSql;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+using Asp.Versioning;
 
 var builder = WebApplication.CreateBuilder(args);
 DotNetEnv.Env.Load();
@@ -42,6 +47,7 @@ builder.Host.UseSerilog();
 // SERVICE REGISTRATION
 // ==========================
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("OpenApiFetcher");
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -50,6 +56,61 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationFilter>();
+});
+
+builder.Services.AddHangfireServer();
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;    // X-Api-Supported-Versions header
+    options.ApiVersionReader = ApiVersionReader.Combine(
+        new UrlSegmentApiVersionReader(),            // /api/v1/...
+        new HeaderApiVersionReader("X-Api-Version"), // X-Api-Version: 1.0
+        new QueryStringApiVersionReader("api-version") // ?api-version=1.0
+    );
+})
+.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+
+// ── Rate Limiting ─────────────────────────────────────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    // Fixed window: 100 requests per 1 minute per IP
+    options.AddFixedWindowLimiter("fixed", limiterOptions =>
+    {
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.PermitLimit = 100;
+        limiterOptions.QueueLimit = 10;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    // Stricter limit for AI endpoints: 20 per minute (AI is expensive)
+    options.AddFixedWindowLimiter("ai_strict", limiterOptions =>
+    {
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.PermitLimit = 20;
+        limiterOptions.QueueLimit = 5;
+    });
+
+    // 429 response when limit exceeded
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+
+        var response = new
+        {
+            success = false,
+            message = "Too many requests. Please slow down.",
+            retryAfter = "60 seconds"
+        };
+
+        await context.HttpContext.Response.WriteAsJsonAsync(response, token);
+    };
 });
 
 // ==========================
@@ -175,6 +236,15 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+builder.Services.AddHangfire(config =>
+{
+    config.UseSimpleAssemblyNameTypeSerializer()
+          .UseRecommendedSerializerSettings()
+          .UsePostgreSqlStorage(
+              builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+
+
 // ==========================
 // BUILD APP
 // ==========================
@@ -207,10 +277,12 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "QAsist API V1");
     c.RoutePrefix = "swagger";
 });
-
+app.UseRateLimiter();
 // ==========================
 // ENDPOINTS
 // ==========================
 app.MapControllers();
+app.UseQAsistHangfire();
+app.MapHub<QAsist.Infrastructure.SignalR.MonitoringHub>("/hubs/monitoring");
 
 app.Run();

@@ -1,20 +1,22 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using QAsist.Api.Extensions;
 using QAsist.Api.Filters;
 using QAsist.Application.Common.Responses;
 using QAsist.Application.DTOs;
+using QAsist.Application.Interfaces.IRepositories;
 using QAsist.Application.Interfaces.IServices;
 using QAsist.Domain.Enums;
 
 namespace QAsist.Api.Controllers
 {
-    /// <summary>
-    /// API Test Execution Engine - Replaces Postman/REST Assured
-    /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [Authorize]
+    [EnableRateLimiting("fixed")]
     public class TestExecutionController : ControllerBase
     {
         private readonly ITestExecutionService _executionService;
@@ -28,38 +30,47 @@ namespace QAsist.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Execute a batch of API test cases
-        /// </summary>
         [HttpPost("execute")]
-        [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin, UserRole.ProjectManager, UserRole.QALead, UserRole.QaEngineer)]
+        [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin,
+                        UserRole.ProjectManager, UserRole.QALead, UserRole.QaEngineer)]
         public async Task<ActionResult<ApiResponse<TestExecutionSummaryDto>>> ExecuteTestCasesAsync(
             [FromBody] ExecuteTestCasesRequestDto request,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation(
-                "User {UserId} executing {Count} test cases for Project {ProjectId} in {Environment}",
-                User.GetUserId(),
-                request.TestCases.Count,
-                request.ProjectId,
-                request.Environment);
-
             var userId = User.GetUserId();
-            var result = await _executionService.ExecuteTestCasesAsync(request, userId, cancellationToken);
+            _logger.LogInformation(
+                "[TestExecution] Execute started. ProjectId={ProjectId} Count={Count} User={UserId}",
+                request.ProjectId, request.TestCases.Count, userId);
+            try
+            {
+                var result = await _executionService
+                    .ExecuteTestCasesAsync(request, userId, cancellationToken);
 
-            var message = result.PassedTests == result.TotalTests
-                ? $"All {result.TotalTests} tests passed successfully"
-                : $"{result.PassedTests}/{result.TotalTests} tests passed ({result.PassPercentage}%)";
+                var message = result.PassedTests == result.TotalTests
+                    ? $"All {result.TotalTests} tests passed"
+                    : $"{result.PassedTests}/{result.TotalTests} tests passed ({result.PassPercentage}%)";
 
-            var response = ApiResponse<TestExecutionSummaryDto>.SuccessResponse(result, message);
-            response.CorrelationId = HttpContext.TraceIdentifier;
+                var response = ApiResponse<TestExecutionSummaryDto>
+                    .SuccessResponse(result, message);
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            return Ok(response);
+                _logger.LogInformation(
+                    "[TestExecution] Execute succeeded. Pass={Pass}/{Total}",
+                    result.PassedTests, result.TotalTests);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[TestExecution] Execute failed. ProjectId={Id}", request.ProjectId);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[TestExecution] Execute completed.");
+            }
         }
 
-        /// <summary>
-        /// Get test execution history for a project
-        /// </summary>
         [HttpGet("history/{projectId:guid}")]
         public async Task<ActionResult<ApiResponse<IEnumerable<TestExecutionSummaryDto>>>> GetExecutionHistoryAsync(
             Guid projectId,
@@ -68,49 +79,66 @@ namespace QAsist.Api.Controllers
             CancellationToken cancellationToken = default)
         {
             _logger.LogInformation(
-                "User {UserId} retrieving execution history for Project {ProjectId}",
-                User.GetUserId(),
-                projectId);
+                "[TestExecution] GetHistory started. ProjectId={Id}", projectId);
+            try
+            {
+                var history = await _executionService
+                    .GetExecutionHistoryAsync(projectId, pageNumber, pageSize, cancellationToken);
+                var response = ApiResponse<IEnumerable<TestExecutionSummaryDto>>
+                    .SuccessResponse(history);
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            var history = await _executionService.GetExecutionHistoryAsync(
-                projectId,
-                pageNumber,
-                pageSize,
-                cancellationToken);
-
-            var response = ApiResponse<IEnumerable<TestExecutionSummaryDto>>.SuccessResponse(history);
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return Ok(response);
+                _logger.LogInformation("[TestExecution] GetHistory succeeded.");
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[TestExecution] GetHistory failed. ProjectId={Id}", projectId);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[TestExecution] GetHistory completed.");
+            }
         }
 
-        /// <summary>
-        /// Get detailed results for a specific execution batch
-        /// </summary>
         [HttpGet("details/{executionBatchId:guid}")]
         public async Task<ActionResult<ApiResponse<TestExecutionSummaryDto>>> GetExecutionDetailsAsync(
-            Guid executionBatchId,
-            CancellationToken cancellationToken)
+            Guid executionBatchId, CancellationToken cancellationToken)
         {
             _logger.LogInformation(
-                "User {UserId} retrieving execution details for batch {BatchId}",
-                User.GetUserId(),
-                executionBatchId);
-
-            var details = await _executionService.GetExecutionDetailsAsync(executionBatchId, cancellationToken);
-
-            if (details == null)
+                "[TestExecution] GetDetails started. BatchId={Id}", executionBatchId);
+            try
             {
-                var errorResponse = ApiResponse<TestExecutionSummaryDto>.ErrorResponse(
-                    $"Execution batch {executionBatchId} not found");
-                errorResponse.CorrelationId = HttpContext.TraceIdentifier;
-                return NotFound(errorResponse);
+                var details = await _executionService
+                    .GetExecutionDetailsAsync(executionBatchId, cancellationToken);
+
+                if (details is null)
+                {
+                    _logger.LogWarning(
+                        "[TestExecution] Batch not found. BatchId={Id}", executionBatchId);
+                    return NotFound(ApiResponse<TestExecutionSummaryDto>.ErrorResponse(
+                        $"Execution batch {executionBatchId} not found"));
+                }
+
+                var response = ApiResponse<TestExecutionSummaryDto>.SuccessResponse(details);
+                response.CorrelationId = HttpContext.TraceIdentifier;
+
+                _logger.LogInformation("[TestExecution] GetDetails succeeded.");
+                return Ok(response);
             }
-
-            var response = ApiResponse<TestExecutionSummaryDto>.SuccessResponse(details);
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return Ok(response);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[TestExecution] GetDetails failed. BatchId={Id}", executionBatchId);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[TestExecution] GetDetails completed.");
+            }
         }
     }
 }
+
