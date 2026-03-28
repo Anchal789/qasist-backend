@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using QAsist.Api.Extensions;
 using QAsist.Api.Filters;
 using QAsist.Application.Common.Responses;
@@ -9,12 +11,11 @@ using QAsist.Domain.Enums;
 
 namespace QAsist.Api.Controllers
 {
-    /// <summary>
-    /// Environment Configuration Management
-    /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [Authorize]
+    [EnableRateLimiting("fixed")]
     public class EnvironmentsController : ControllerBase
     {
         private readonly IEnvironmentService _environmentService;
@@ -28,71 +29,102 @@ namespace QAsist.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Get all environments for a project
-        /// </summary>
+        // ── GET /api/v1/environments/project/{projectId} ──────────────────────
         [HttpGet("project/{projectId:guid}")]
         public async Task<ActionResult<ApiResponse<IEnumerable<EnvironmentDto>>>> GetByProjectAsync(
-            Guid projectId,
-            CancellationToken cancellationToken)
+            Guid projectId, CancellationToken cancellationToken)
         {
-            var environments = await _environmentService.GetByProjectAsync(projectId, cancellationToken);
+            _logger.LogInformation(
+                "[Environments] GetByProject started. ProjectId={Id}", projectId);
+            try
+            {
+                var environments = await _environmentService
+                    .GetByProjectAsync(projectId, cancellationToken);
+                var response = ApiResponse<IEnumerable<EnvironmentDto>>
+                    .SuccessResponse(environments);
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            var response = ApiResponse<IEnumerable<EnvironmentDto>>.SuccessResponse(environments);
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return Ok(response);
+                _logger.LogInformation("[Environments] GetByProject succeeded.");
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[Environments] GetByProject failed. ProjectId={Id}", projectId);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug(
+                    "[Environments] GetByProject completed. ProjectId={Id}", projectId);
+            }
         }
 
-        /// <summary>
-        /// Get environment by ID
-        /// </summary>
+        // ── GET /api/v1/environments/{id} ─────────────────────────────────────
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<ApiResponse<EnvironmentDto>>> GetByIdAsync(
-            Guid id,
-            CancellationToken cancellationToken)
+            Guid id, CancellationToken cancellationToken)
         {
-            var environment = await _environmentService.GetByIdAsync(id, cancellationToken);
+            _logger.LogInformation(
+                "[Environments] GetById started. Id={Id}", id);
+            try
+            {
+                var environment = await _environmentService.GetByIdAsync(id, cancellationToken);
+                var response = ApiResponse<EnvironmentDto>.SuccessResponse(environment);
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            var response = ApiResponse<EnvironmentDto>.SuccessResponse(environment);
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return Ok(response);
+                _logger.LogInformation("[Environments] GetById succeeded. Id={Id}", id);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Environments] GetById failed. Id={Id}", id);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[Environments] GetById completed. Id={Id}", id);
+            }
         }
 
-        /// <summary>
-        /// Create new environment
-        /// </summary>
+        // ── POST /api/v1/environments ─────────────────────────────────────────
         [HttpPost]
         [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin, UserRole.ProjectManager)]
         public async Task<ActionResult<ApiResponse<EnvironmentDto>>> CreateAsync(
             [FromBody] CreateEnvironmentDto dto,
             CancellationToken cancellationToken)
         {
-            _logger.LogInformation(
-                "User {UserId} creating environment '{Name}' for Project {ProjectId}",
-                User.GetUserId(),
-                dto.Name,
-                dto.ProjectId);
-
             var userId = User.GetUserId();
-            var environment = await _environmentService.CreateAsync(dto, userId, cancellationToken);
+            _logger.LogInformation(
+                "[Environments] Create started. Name={Name} ProjectId={ProjectId} User={UserId}",
+                dto.Name, dto.ProjectId, userId);
+            try
+            {
+                var environment = await _environmentService
+                    .CreateAsync(dto, userId, cancellationToken);
+                var response = ApiResponse<EnvironmentDto>.SuccessResponse(
+                    environment, $"Environment '{dto.Name}' created successfully.");
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            var response = ApiResponse<EnvironmentDto>.SuccessResponse(
-                environment,
-                $"Environment '{dto.Name}' created successfully");
+                _logger.LogInformation(
+                    "[Environments] Create succeeded. EnvironmentId={Id}", environment.Id);
 
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return CreatedAtAction(
-                nameof(GetByIdAsync),
-                new { id = environment.Id },
-                response);
+                // Use Ok() instead of CreatedAtAction to avoid route resolution issues
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[Environments] Create failed. Name={Name}", dto.Name);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[Environments] Create completed.");
+            }
         }
 
-        /// <summary>
-        /// Update environment
-        /// </summary>
+        // ── PUT /api/v1/environments/{id} ─────────────────────────────────────
         [HttpPut("{id:guid}")]
         [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin, UserRole.ProjectManager)]
         public async Task<ActionResult<ApiResponse<EnvironmentDto>>> UpdateAsync(
@@ -101,48 +133,61 @@ namespace QAsist.Api.Controllers
             CancellationToken cancellationToken)
         {
             dto.Id = id;
-
-            _logger.LogInformation(
-                "User {UserId} updating environment {EnvironmentId}",
-                User.GetUserId(),
-                id);
-
             var userId = User.GetUserId();
-            var environment = await _environmentService.UpdateAsync(dto, userId, cancellationToken);
+            _logger.LogInformation(
+                "[Environments] Update started. Id={Id} User={UserId}", id, userId);
+            try
+            {
+                var environment = await _environmentService
+                    .UpdateAsync(dto, userId, cancellationToken);
+                var response = ApiResponse<EnvironmentDto>.SuccessResponse(
+                    environment, "Environment updated successfully.");
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            var response = ApiResponse<EnvironmentDto>.SuccessResponse(
-                environment,
-                "Environment updated successfully");
-
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return Ok(response);
+                _logger.LogInformation("[Environments] Update succeeded. Id={Id}", id);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[Environments] Update failed. Id={Id}", id);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[Environments] Update completed. Id={Id}", id);
+            }
         }
 
-        /// <summary>
-        /// Delete environment
-        /// </summary>
+        // ── DELETE /api/v1/environments/{id} ──────────────────────────────────
         [HttpDelete("{id:guid}")]
         [AuthorizeRoles(UserRole.SuperAdmin, UserRole.Admin)]
         public async Task<ActionResult<ApiResponse<object>>> DeleteAsync(
-            Guid id,
-            CancellationToken cancellationToken)
+            Guid id, CancellationToken cancellationToken)
         {
-            _logger.LogInformation(
-                "User {UserId} deleting environment {EnvironmentId}",
-                User.GetUserId(),
-                id);
-
             var userId = User.GetUserId();
-            await _environmentService.DeleteAsync(id, userId, cancellationToken);
+            _logger.LogInformation(
+                "[Environments] Delete started. Id={Id} User={UserId}", id, userId);
+            try
+            {
+                await _environmentService.DeleteAsync(id, userId, cancellationToken);
+                var response = ApiResponse<object>.SuccessResponse(
+                    null, "Environment deleted successfully.");
+                response.CorrelationId = HttpContext.TraceIdentifier;
 
-            var response = ApiResponse<object>.SuccessResponse(
-                null,
-                "Environment deleted successfully");
-
-            response.CorrelationId = HttpContext.TraceIdentifier;
-
-            return Ok(response);
+                _logger.LogInformation("[Environments] Delete succeeded. Id={Id}", id);
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "[Environments] Delete failed. Id={Id}", id);
+                throw;
+            }
+            finally
+            {
+                _logger.LogDebug("[Environments] Delete completed. Id={Id}", id);
+            }
         }
     }
 }

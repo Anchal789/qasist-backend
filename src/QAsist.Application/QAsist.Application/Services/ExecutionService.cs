@@ -72,7 +72,7 @@ namespace QAsist.Application.Services
         }
 
         // ── GET RESULTS PAGED ─────────────────────────────────────────────────
-        public async Task<(IEnumerable<StepResultDto> Results, int TotalCount)> GetResultsAsync(
+        public async Task<(IEnumerable<ExecutionStepResultDto> Results, int TotalCount)> GetResultsAsync(
             Guid batchId,
             int pageNumber,
             int pageSize,
@@ -92,7 +92,7 @@ namespace QAsist.Application.Services
                 var (results, total) = await _executionRepository
                     .GetResultsByBatchPagedAsync(batchId, pageNumber, pageSize, cancellationToken);
 
-                var dtos = results.Select(r => new StepResultDto
+                var dtos = results.Select(r => new ExecutionStepResultDto
                 {
                     Id = r.Id,
                     BatchId = r.BatchId,
