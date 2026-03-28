@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Http;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
 using Polly.Extensions.Http;
@@ -9,9 +8,13 @@ using QAsist.Application.Execution.Http;
 using QAsist.Application.Interfaces.IContext;
 using QAsist.Application.Interfaces.IRepositories;
 using QAsist.Application.Interfaces.IServices;
+using QAsist.Infrastructure.Monitoring;
 using QAsist.Infrastructure.Persistence;
+using QAsist.Infrastructure.Redis;
 using QAsist.Infrastructure.Repository;
 using QAsist.Infrastructure.Services;
+using QAsist.Infrastructure.SignalR;
+using StackExchange.Redis;
 
 namespace QAsist.Infrastructure
 {
@@ -64,6 +67,25 @@ namespace QAsist.Infrastructure
             services.AddScoped<ISuiteExecutor, SuiteExecutor>();
             services.AddScoped<ITestSuiteRepository, TestSuiteRepository>();
             services.AddScoped<IExecutionRepository, ExecutionRepository>();
+            services.AddScoped<ITestSuiteMappingRepository, TestSuiteMappingRepository>();
+
+
+            services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var redisConnection = configuration.GetConnectionString("Redis");
+
+                var options = ConfigurationOptions.Parse(redisConnection, true);
+                options.AbortOnConnectFail = false;
+
+                return ConnectionMultiplexer.Connect(options);
+            });
+
+            services.AddScoped<IRedisService, RedisService>();
+            services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+            services.AddScoped<IMonitoringService, MonitoringService>();
+            services.AddScoped<IMonitoringNotifier, MonitoringNotifier>();
+            services.AddSignalR();
+
 
             return services;
         }

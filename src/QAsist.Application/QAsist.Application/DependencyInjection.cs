@@ -8,6 +8,7 @@ using QAsist.Application.Interfaces.IServices;
 using QAsist.Application.Services;
 using System.Reflection;
 using QAsist.Application.Execution.Extractions;
+using QAsist.Infrastructure.Monitoring;
 
 namespace QAsist.Application
 {
@@ -44,6 +45,14 @@ namespace QAsist.Application
             services.AddScoped<IExtractionEngine, ExtractionEngine>();
             services.AddScoped<ITestSuiteService, TestSuiteService>();
             services.AddScoped<IExecutionService, ExecutionService>();
+
+            services.AddScoped<ISuiteExecutionService, SuiteExecutionService>();
+            services.AddScoped<ITestSuiteService, TestSuiteService>();
+            services.AddScoped<IExecutionService, ExecutionService>();
+            services.AddScoped<ITestSuiteMappingService, TestSuiteMappingService>();
+
+            // Phase 3: Monitoring
+            services.AddScoped<IUptimeCalculator, UptimeCalculator>(); 
             return services;
         }
     }
