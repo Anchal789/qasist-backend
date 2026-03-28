@@ -6,6 +6,7 @@ using QAsist.Application.DTOs;
 using QAsist.Application.Interfaces.IRepositories;
 using QAsist.Application.Interfaces.IServices;
 using QAsist.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace QAsist.Infrastructure.Services
 {
@@ -16,19 +17,22 @@ namespace QAsist.Infrastructure.Services
         private readonly IJwtService _jwtService;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<AuthService> _logger;
 
         public AuthService(
             IUserRepository userRepository,
             IRefreshTokenRepository refreshTokenRepository,
             IJwtService jwtService,
             IMapper mapper,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
             _refreshTokenRepository = refreshTokenRepository;
             _jwtService = jwtService;
             _mapper = mapper;
             _configuration = configuration;
+            _logger = logger;
         }
 
         public async Task<LoginResponseDto> LoginAsync(
@@ -131,31 +135,39 @@ namespace QAsist.Infrastructure.Services
             };
         }
 
-        public async Task RegisterAsync(
-        RegisterRequestDto dto,
-        CancellationToken cancellationToken)
+        public async Task<RegisterResponseDto> RegisterAsync(
+        RegisterRequestDto dto)
         {
-            // check existing user
-            var existingUser = await _userRepository.GetByEmailAsync(dto.Email);
-            if (existingUser != null)
-                throw new Exception("User already exists");
-
-            // hash password
-            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-
-            // create entity
-            var user = new User
+            try
             {
-                Id = Guid.NewGuid(),
-                Email = dto.Email,
-                FirstName = dto.FirstName,
-                LastName = dto.LastName,
-                PasswordHash = hashedPassword,
-                CreatedAt = DateTime.UtcNow
-            };
+                var existingUser = await _userRepository.GetByEmailAsync(dto.Email);
+                if (existingUser != null)
+                    throw new BadRequestException("User already exists");
 
-            // save
-            await _userRepository.AddAsync(user);
+                var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+                var user = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = dto.Email,
+                    FirstName = dto.FirstName,
+                    LastName = dto.LastName,
+                    PasswordHash = hashedPassword,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _userRepository.AddAsync(user);
+
+                return new RegisterResponseDto
+                {
+                    User = _mapper.Map<CreateUserDto>(user),
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while registering user");
+                throw;
+            }
         }
 
         public async Task LogoutAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -176,5 +188,9 @@ namespace QAsist.Infrastructure.Services
             return BCrypt.Net.BCrypt.Verify(password, passwordHash);
         }
 
+        Task IAuthService.RegisterAsync(RegisterRequestDto dto)
+        {
+            return RegisterAsync(dto);
+        }
     }
 }

@@ -94,13 +94,12 @@ namespace QAsist.Api.Controller
 
         [HttpPost("register")]
         [AllowAnonymous]
-        public async Task<ActionResult<ApiResponse<object>>> RegisterAsync(
-        [FromBody] RegisterRequestDto dto,
-        CancellationToken cancellationToken)
+        public async Task<ActionResult<ApiResponse<RegisterResponseDto>>> RegisterAsync(
+        [FromBody] RegisterRequestDto dto)
         {
-            await _authService.RegisterAsync(dto, cancellationToken);
+            await _authService.RegisterAsync(dto);
 
-            var response = ApiResponse<object>.SuccessResponse(
+            var response = ApiResponse<RegisterResponseDto>.SuccessResponse(
                 null,
                 "User registered successfully");
 

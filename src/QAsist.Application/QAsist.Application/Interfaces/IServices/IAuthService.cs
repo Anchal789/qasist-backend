@@ -8,6 +8,6 @@ namespace QAsist.Application.Interfaces.IServices
         Task<LoginResponseDto> RefreshTokenAsync(RefreshTokenRequestDto dto, string ipAddress, string userAgent, CancellationToken cancellationToken = default);
         Task LogoutAsync(string sessionId, CancellationToken cancellationToken = default);
         Task LogoutAllSessionsAsync(Guid userId, CancellationToken cancellationToken = default);
-        Task RegisterAsync(RegisterRequestDto dto, CancellationToken cancellationToken);
+        Task RegisterAsync(RegisterRequestDto dto);
     }
 }
