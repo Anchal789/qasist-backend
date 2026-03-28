@@ -17,6 +17,11 @@ namespace QAsist.Application.DTOs
         public UserDto User { get; set; } = null!;
     }
 
+    public class RegisterResponseDto
+    {
+        public CreateUserDto User { get; set; } = null!;
+    }
+
     public class RefreshTokenRequestDto
     {
         public string RefreshToken { get; set; } = string.Empty;
