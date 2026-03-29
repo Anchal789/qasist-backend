@@ -69,36 +69,19 @@ namespace QAsist.Domain.Entities
         public long DurationMs { get; set; }
         public string? ErrorMessage { get; set; }
 
-        // ── Logs (stored as JSONB) ──────────────────────────────────────────
-        /// <summary>
-        /// Full HTTP request details.
-        /// Authorization header value replaced with "[REDACTED]".
-        /// Serialized as JSONB.
-        /// </summary>
         public RequestLog? RequestLog { get; set; }
-
-        /// <summary>
-        /// Full HTTP response details.
-        /// Body truncated at 100KB (ResponseLog.MaxBodyBytes).
-        /// Serialized as JSONB.
-        /// </summary>
         public ResponseLog? ResponseLog { get; set; }
 
-        // ── Assertion Results (JSONB array) ──────────────────────────────────
-        /// <summary>All assertion outcomes for this step. Serialized as JSONB.</summary>
         public List<AssertionResult> AssertionResults { get; set; } = new();
-
-        // ── Extracted Variables (JSONB object) ───────────────────────────────
-        /// <summary>
-        /// Variables extracted from this step's response.
-        /// Key = variable name, Value = extracted value.
-        /// Stored for audit/debug — execution uses ExecutionContext at runtime.
-        /// </summary>
         public Dictionary<string, string> ExtractedVariables { get; set; } = new();
 
         public DateTime ExecutedAt { get; set; } = DateTime.UtcNow;
 
-        // ── Navigation ────────────────────────────────────────────────────────
+        // ✅ Audit
+        public Guid CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        // ✅ Navigation
         public ExecutionBatch Batch { get; set; } = null!;
     }
 }

@@ -47,8 +47,6 @@ namespace QAsist.Application
             services.AddScoped<IExecutionService, ExecutionService>();
 
             services.AddScoped<ISuiteExecutionService, SuiteExecutionService>();
-            services.AddScoped<ITestSuiteService, TestSuiteService>();
-            services.AddScoped<IExecutionService, ExecutionService>();
             services.AddScoped<ITestSuiteMappingService, TestSuiteMappingService>();
 
             // Phase 3: Monitoring

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using QAsist.Domain.Entities;
 using QAsist.Domain.Enums;
 
 namespace QAsist.Application.DTOs
@@ -71,19 +72,16 @@ namespace QAsist.Application.DTOs
         [StringLength(500, MinimumLength = 3, ErrorMessage = "Title must be 3–500 characters.")]
         public string Title { get; set; } = string.Empty;
 
-        public List<string> Steps { get; set; } = new();
+        // FIX: was List<string> — now List<ExecutableStep>
+        public List<ExecutableStep> Steps { get; set; } = new();
 
-        // NOT NULL in DB — default to empty string if not provided
         public string ExpectedResult { get; set; } = string.Empty;
 
         public TestCasePriority Priority { get; set; } = TestCasePriority.Medium;
 
-        // Status on create: only Draft or Active make sense
         public TestCaseStatus Status { get; set; } = TestCaseStatus.Draft;
 
-        /// <summary>JSON string: {"Content-Type":"application/json"}</summary>
         public string? RequestHeaders { get; set; }
-
         public string? RequestBody { get; set; }
 
         [Range(100, 599, ErrorMessage = "ExpectedStatusCode must be a valid HTTP status code.")]
@@ -100,7 +98,7 @@ namespace QAsist.Application.DTOs
     // ── Update test case ──────────────────────────────────────────────────────────
     public class UpdateTestCaseDto
     {
-        public Guid Id { get; set; }   // set from route in controller
+        public Guid Id { get; set; }
 
         [Required(ErrorMessage = "Endpoint is required.")]
         [StringLength(500, MinimumLength = 1)]
@@ -116,9 +114,10 @@ namespace QAsist.Application.DTOs
         [StringLength(500, MinimumLength = 3)]
         public string Title { get; set; } = string.Empty;
 
-        public List<string> Steps { get; set; } = new();
+        // FIX: was List<string> — now List<ExecutableStep>
+        public List<ExecutableStep> Steps { get; set; } = new();
 
-        public string ExpectedResult { get; set; } = string.Empty;  // NOT NULL
+        public string ExpectedResult { get; set; } = string.Empty;
 
         public TestCasePriority Priority { get; set; } = TestCasePriority.Medium;
 
