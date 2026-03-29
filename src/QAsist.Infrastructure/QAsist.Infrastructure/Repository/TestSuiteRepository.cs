@@ -5,19 +5,15 @@ using NpgsqlTypes;
 using QAsist.Application.Interfaces.IRepositories;
 using QAsist.Domain.Entities;
 using QAsist.Infrastructure.Persistence;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace QAsist.Infrastructure.Repository
 {
     /// <summary>
     /// Week 8 — Repository for TestSuite aggregate.
-    /// Pattern matches your existing ProjectRepository + TestCaseRepository.
-    /// Uses Dapper + raw SQL (no stored functions for new engine tables).
+    /// FIX: GetWithDetailsAsync now reads steps from test_cases.steps JSONB
+    ///      instead of test_steps table (which is empty — engine's own table).
+    ///      Steps are deserialized from ExecutableStep JSONB into TestStep domain objects.
     /// </summary>
     public class TestSuiteRepository : ITestSuiteRepository
     {
@@ -62,13 +58,16 @@ namespace QAsist.Infrastructure.Repository
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Repository error: GetByIdAsync {Id}", id);
+                _logger.LogError(ex, "Repository error: GetByIdAsync {Id}", id);
                 throw;
             }
         }
 
         // ── GET WITH FULL TREE ────────────────────────────────────────────────
+        // FIX: Reads cases from test_suite_test_cases (mapping table) joined to
+        //      test_cases, then deserializes steps directly from test_cases.steps
+        //      JSONB column. Does NOT query test_steps table (that table is only
+        //      populated by the engine's own native flow, not by the API).
         public async Task<TestSuite?> GetWithDetailsAsync(
             Guid id,
             CancellationToken cancellationToken = default)
@@ -78,7 +77,7 @@ namespace QAsist.Infrastructure.Repository
                 using var connection = await _connectionFactory
                     .CreateConnectionAsync(cancellationToken);
 
-                // Load suite
+                // 1. Load suite
                 const string suiteSql = @"
                     SELECT id, project_id, name, description, variables,
                            parallel_cases, is_active,
@@ -93,109 +92,129 @@ namespace QAsist.Infrastructure.Repository
 
                 var suite = MapToEntity(suiteDb);
 
-                // Load cases (ordered)
+                // 2. Load cases via mapping table joined to test_cases.
+                //    Also pulls test_cases.steps JSONB directly.
                 const string casesSql = @"
-                    SELECT id, test_suite_id, name, order_index, is_enabled, tags,
-                           created_by, created_at, updated_by, updated_at, is_deleted
-                    FROM test_cases_suite
-                    WHERE test_suite_id = @SuiteId AND is_deleted = false
-                    ORDER BY order_index";
+                    SELECT
+                        m.id                AS id,
+                        m.test_suite_id     AS test_suite_id,
+                        tc.id               AS linked_test_case_id,
+                        tc.title            AS name,
+                        tc.steps            AS steps_json,
+                        m.""order""         AS order_index,
+                        m.is_enabled        AS is_enabled,
+                        m.created_by        AS created_by,
+                        m.created_at        AS created_at,
+                        m.updated_by        AS updated_by,
+                        m.updated_at        AS updated_at,
+                        m.is_deleted        AS is_deleted
+                    FROM test_suite_test_cases m
+                    INNER JOIN test_cases tc
+                        ON tc.id = m.test_case_id AND tc.is_deleted = false
+                    WHERE m.test_suite_id = @SuiteId
+                      AND m.is_deleted = false
+                    ORDER BY m.""order""";
 
-                var caseDbs = await connection.QueryAsync<TestCaseSuiteDb>(
-                    casesSql, new { SuiteId = id });
+                var caseDbs = (await connection.QueryAsync<TestCaseSuiteDb>(
+                    casesSql, new { SuiteId = id })).ToList();
 
-                // Load steps for all cases in one query
-                var caseIds = caseDbs.Select(c => c.Id).ToArray();
+                _logger.LogDebug(
+                    "GetWithDetailsAsync: loaded {Count} mapped cases for suite {Id}",
+                    caseDbs.Count, id);
 
-                IEnumerable<TestStepDb> stepDbs = new List<TestStepDb>();
-                IEnumerable<AssertionDb> assertionDbs = new List<AssertionDb>();
-                IEnumerable<ExtractionDb> extractionDbs = new List<ExtractionDb>();
-
-                if (caseIds.Length > 0)
-                {
-                    const string stepsSql = @"
-                        SELECT id, test_case_id, name, order_index, http_method,
-                               url, request_headers, request_body, auth_config,
-                               timeout_ms, retry_count, is_enabled, description,
-                               created_by, created_at, updated_by, updated_at, is_deleted
-                        FROM test_steps
-                        WHERE test_case_id = ANY(@CaseIds) AND is_deleted = false
-                        ORDER BY order_index";
-
-                    stepDbs = await connection.QueryAsync<TestStepDb>(
-                        stepsSql, new { CaseIds = caseIds });
-
-                    var stepIds = stepDbs.Select(s => s.Id).ToArray();
-
-                    if (stepIds.Length > 0)
-                    {
-                        const string assertionsSql = @"
-                            SELECT id, test_step_id, assertion_type, field,
-                                   operator, expected_value, order_index, is_required,
-                                   created_by, created_at, is_deleted
-                            FROM assertions
-                            WHERE test_step_id = ANY(@StepIds) AND is_deleted = false
-                            ORDER BY order_index";
-
-                        assertionDbs = await connection.QueryAsync<AssertionDb>(
-                            assertionsSql, new { StepIds = stepIds });
-
-                        const string extractionsSql = @"
-                            SELECT id, test_step_id, variable_name, source,
-                                   json_path, header_name, default_value,
-                                   created_by, created_at, is_deleted
-                            FROM extractions
-                            WHERE test_step_id = ANY(@StepIds) AND is_deleted = false";
-
-                        extractionDbs = await connection.QueryAsync<ExtractionDb>(
-                            extractionsSql, new { StepIds = stepIds });
-                    }
-                }
-
-                // Assemble tree
-                var stepsByCase = stepDbs
-                    .GroupBy(s => s.TestCaseId)
-                    .ToDictionary(g => g.Key, g => g.ToList());
-
-                var assertionsByStep = assertionDbs
-                    .GroupBy(a => a.TestStepId)
-                    .ToDictionary(g => g.Key, g => g.ToList());
-
-                var extractionsByStep = extractionDbs
-                    .GroupBy(e => e.TestStepId)
-                    .ToDictionary(g => g.Key, g => g.ToList());
-
+                // 3. For each case, deserialize steps from JSONB and map to TestStep
                 suite.TestCases = caseDbs.Select(c =>
                 {
                     var testCase = MapCaseToEntity(c);
-                    var steps = stepsByCase.GetValueOrDefault(c.Id, new());
 
-                    testCase.Steps = steps.Select(s =>
+                    // Deserialize ExecutableStep list from JSONB stored in test_cases.steps
+                    List<ExecutableStep> rawSteps = new();
+                    try
                     {
-                        var step = MapStepToEntity(s);
-                        step.Assertions = assertionsByStep
-                            .GetValueOrDefault(s.Id, new())
-                            .Select(MapAssertionToEntity).ToList();
-                        step.Extractions = extractionsByStep
-                            .GetValueOrDefault(s.Id, new())
-                            .Select(MapExtractionToEntity).ToList();
-                        return step;
-                    }).ToList();
+                        if (!string.IsNullOrWhiteSpace(c.StepsJson))
+                        {
+                            rawSteps = JsonSerializer.Deserialize<List<ExecutableStep>>(
+                                c.StepsJson, _jsonOptions) ?? new();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to deserialize steps JSONB for case {CaseId}. StepsJson={Json}",
+                            c.LinkedTestCaseId, c.StepsJson);
+                    }
+
+                    _logger.LogDebug(
+                        "Case '{Name}' ({CaseId}): deserialized {StepCount} steps",
+                        c.Name, c.LinkedTestCaseId, rawSteps.Count);
+
+                    // Map ExecutableStep → TestStep (domain entity the engine understands)
+                    testCase.Steps = rawSteps
+                        .Where(s => s.IsEnabled)   // skip disabled steps
+                        .Select((s, idx) => new TestStep
+                        {
+                            Id = Guid.NewGuid(),              // synthetic — not in DB
+                            TestCaseId = c.LinkedTestCaseId,
+                            Name = !string.IsNullOrWhiteSpace(s.Name)
+                                            ? s.Name
+                                            : $"Step {idx + 1}",
+                            OrderIndex = idx,
+                            Method = Enum.TryParse<Domain.Enums.HttpMethod>(
+                                            s.Method, true, out var parsedMethod)
+                                            ? parsedMethod
+                                            : Domain.Enums.HttpMethod.GET,
+                            Url = s.Url ?? string.Empty,
+                            RequestHeaders = s.RequestHeaders ?? new(),
+                            RequestBody = s.RequestBody,
+                            TimeoutMs = s.TimeoutMs > 0 ? s.TimeoutMs : 10_000,
+                            RetryCount = s.RetryCount,
+                            IsEnabled = true,    // already filtered above
+                            CreatedBy = c.CreatedBy,
+                            CreatedAt = c.CreatedAt,
+                            Assertions = s.Assertions.Select((a, ai) => new Assertion
+                            {
+                                Id = Guid.NewGuid(),
+                                TestStepId = Guid.Empty,   // synthetic
+                                AssertionType = Enum.TryParse<Domain.Enums.AssertionType>(
+                                                    a.Type, true, out var parsedAt)
+                                                    ? parsedAt
+                                                    : Domain.Enums.AssertionType.StatusCodeEquals,
+                                Field = a.JsonPath,
+                                ExpectedValue = a.Expected,
+                                OrderIndex = ai,
+                                IsRequired = true,
+                                CreatedBy = c.CreatedBy,
+                                CreatedAt = c.CreatedAt,
+                                IsDeleted = false
+                            }).ToList(),
+                            Extractions = s.Extractions.Select(e => new Extraction
+                            {
+                                Id = Guid.NewGuid(),
+                                TestStepId = Guid.Empty,   // synthetic
+                                VariableName = e.Variable ?? string.Empty,
+                                Source = Domain.Enums.ExtractionSource.Body,
+                                JsonPath = e.JsonPath,
+                                DefaultValue = e.DefaultValue,
+                                CreatedBy = c.CreatedBy,
+                                CreatedAt = c.CreatedAt,
+                                IsDeleted = false
+                            }).ToList()
+                        }).ToList();
 
                     return testCase;
                 }).ToList();
 
                 _logger.LogDebug(
-                    "Loaded suite {Id} with {Cases} cases, {Steps} steps",
-                    id, suite.TestCases.Count,
+                    "Loaded suite {Id} with {Cases} cases, {Steps} total steps",
+                    id,
+                    suite.TestCases.Count,
                     suite.TestCases.Sum(c => c.Steps.Count));
 
                 return suite;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Repository error: GetWithDetailsAsync {Id}", id);
+                _logger.LogError(ex, "Repository error: GetWithDetailsAsync {Id}", id);
                 throw;
             }
         }
@@ -374,12 +393,11 @@ namespace QAsist.Infrastructure.Repository
                 cmd.Parameters.AddWithValue("updated_by", NpgsqlDbType.Uuid, userId);
 
                 var result = await cmd.ExecuteScalarAsync(cancellationToken);
-                return result != null ? Convert.ToBoolean(result) : false;
+                return result != null && Convert.ToBoolean(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Repository error: UpdateAsync {Id}", suite.Id);
+                _logger.LogError(ex, "Repository error: UpdateAsync {Id}", suite.Id);
                 throw;
             }
         }
@@ -406,13 +424,13 @@ namespace QAsist.Infrastructure.Repository
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Repository error: DeleteAsync {Id}", id);
+                _logger.LogError(ex, "Repository error: DeleteAsync {Id}", id);
                 throw;
             }
         }
 
         // ── PRIVATE: DB models ────────────────────────────────────────────────
+
         private class TestSuiteDb
         {
             public Guid Id { get; set; }
@@ -433,69 +451,21 @@ namespace QAsist.Infrastructure.Repository
         {
             public Guid Id { get; set; }
             public Guid TestSuiteId { get; set; }
+            public Guid LinkedTestCaseId { get; set; }  // tc.id from JOIN
             public string Name { get; set; } = string.Empty;
+            public string? StepsJson { get; set; }  // tc.steps JSONB
             public int OrderIndex { get; set; }
             public bool IsEnabled { get; set; }
-            public string? Tags { get; set; } // array as JSON
+            public string? Tags { get; set; }
             public Guid CreatedBy { get; set; }
             public DateTime CreatedAt { get; set; }
             public Guid? UpdatedBy { get; set; }
             public DateTime? UpdatedAt { get; set; }
-            public bool IsDeleted { get; set; }
-        }
-
-        private class TestStepDb
-        {
-            public Guid Id { get; set; }
-            public Guid TestCaseId { get; set; }
-            public string Name { get; set; } = string.Empty;
-            public int OrderIndex { get; set; }
-            public string HttpMethod { get; set; } = "GET";
-            public string Url { get; set; } = string.Empty;
-            public string? RequestHeaders { get; set; } // JSONB
-            public string? RequestBody { get; set; }
-            public string? AuthConfig { get; set; }   // JSONB
-            public int TimeoutMs { get; set; }
-            public int RetryCount { get; set; }
-            public bool IsEnabled { get; set; }
-            public string? Description { get; set; }
-            public Guid CreatedBy { get; set; }
-            public DateTime CreatedAt { get; set; }
-            public Guid? UpdatedBy { get; set; }
-            public DateTime? UpdatedAt { get; set; }
-            public bool IsDeleted { get; set; }
-        }
-
-        private class AssertionDb
-        {
-            public Guid Id { get; set; }
-            public Guid TestStepId { get; set; }
-            public int AssertionType { get; set; }
-            public string? Field { get; set; }
-            public string? Operator { get; set; }
-            public string? ExpectedValue { get; set; }
-            public int OrderIndex { get; set; }
-            public bool IsRequired { get; set; }
-            public Guid CreatedBy { get; set; }
-            public DateTime CreatedAt { get; set; }
-            public bool IsDeleted { get; set; }
-        }
-
-        private class ExtractionDb
-        {
-            public Guid Id { get; set; }
-            public Guid TestStepId { get; set; }
-            public string VariableName { get; set; } = string.Empty;
-            public int Source { get; set; }
-            public string? JsonPath { get; set; }
-            public string? HeaderName { get; set; }
-            public string? DefaultValue { get; set; }
-            public Guid CreatedBy { get; set; }
-            public DateTime CreatedAt { get; set; }
             public bool IsDeleted { get; set; }
         }
 
         // ── PRIVATE: Mappers ──────────────────────────────────────────────────
+
         private static TestSuite MapToEntity(TestSuiteDb db)
         {
             Dictionary<string, string> vars;
@@ -528,15 +498,7 @@ namespace QAsist.Infrastructure.Repository
 
         private static TestCaseSuite MapCaseToEntity(TestCaseSuiteDb db)
         {
-            List<string> tags;
-            try
-            {
-                tags = string.IsNullOrWhiteSpace(db.Tags)
-                    ? new()
-                    : JsonSerializer.Deserialize<List<string>>(db.Tags) ?? new();
-            }
-            catch { tags = new(); }
-
+            // Tags not used in engine — safe to leave empty
             return new TestCaseSuite
             {
                 Id = db.Id,
@@ -544,7 +506,7 @@ namespace QAsist.Infrastructure.Repository
                 Name = db.Name,
                 OrderIndex = db.OrderIndex,
                 IsEnabled = db.IsEnabled,
-                Tags = tags,
+                Tags = new List<string>(),
                 CreatedBy = db.CreatedBy,
                 CreatedAt = db.CreatedAt,
                 UpdatedBy = db.UpdatedBy,
@@ -553,80 +515,5 @@ namespace QAsist.Infrastructure.Repository
                 Steps = new List<TestStep>()
             };
         }
-
-        private static TestStep MapStepToEntity(TestStepDb db)
-        {
-            Dictionary<string, string> headers;
-            try
-            {
-                headers = string.IsNullOrWhiteSpace(db.RequestHeaders)
-                    ? new()
-                    : JsonSerializer.Deserialize<Dictionary<string, string>>(
-                        db.RequestHeaders, _jsonOptions) ?? new();
-            }
-            catch { headers = new(); }
-
-            Domain.ValueObjects.AuthConfig? authConfig = null;
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(db.AuthConfig))
-                    authConfig = JsonSerializer.Deserialize<Domain.ValueObjects.AuthConfig>(
-                        db.AuthConfig, _jsonOptions);
-            }
-            catch { }
-
-            return new TestStep
-            {
-                Id = db.Id,
-                TestCaseId = db.TestCaseId,
-                Name = db.Name,
-                OrderIndex = db.OrderIndex,
-                Method = Enum.Parse<Domain.Enums.HttpMethod>(db.HttpMethod, true),
-                Url = db.Url,
-                RequestHeaders = headers,
-                RequestBody = db.RequestBody,
-                AuthConfig = authConfig,
-                TimeoutMs = db.TimeoutMs,
-                RetryCount = db.RetryCount,
-                IsEnabled = db.IsEnabled,
-                Description = db.Description,
-                CreatedBy = db.CreatedBy,
-                CreatedAt = db.CreatedAt,
-                UpdatedBy = db.UpdatedBy,
-                UpdatedAt = db.UpdatedAt,
-                IsDeleted = db.IsDeleted,
-                Assertions = new List<Assertion>(),
-                Extractions = new List<Extraction>()
-            };
-        }
-
-        private static Assertion MapAssertionToEntity(AssertionDb db) => new()
-        {
-            Id = db.Id,
-            TestStepId = db.TestStepId,
-            AssertionType = (Domain.Enums.AssertionType)db.AssertionType,
-            Field = db.Field,
-            Operator = db.Operator,
-            ExpectedValue = db.ExpectedValue,
-            OrderIndex = db.OrderIndex,
-            IsRequired = db.IsRequired,
-            CreatedBy = db.CreatedBy,
-            CreatedAt = db.CreatedAt,
-            IsDeleted = db.IsDeleted
-        };
-
-        private static Extraction MapExtractionToEntity(ExtractionDb db) => new()
-        {
-            Id = db.Id,
-            TestStepId = db.TestStepId,
-            VariableName = db.VariableName,
-            Source = (Domain.Enums.ExtractionSource)db.Source,
-            JsonPath = db.JsonPath,
-            HeaderName = db.HeaderName,
-            DefaultValue = db.DefaultValue,
-            CreatedBy = db.CreatedBy,
-            CreatedAt = db.CreatedAt,
-            IsDeleted = db.IsDeleted
-        };
     }
 }

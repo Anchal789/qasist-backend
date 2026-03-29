@@ -8,44 +8,92 @@ namespace QAsist.Domain.Entities
     /// </summary>
     public class TestCase
     {
-        // ── Primary ───────────────────────────────────────────────────────────
         public Guid Id { get; set; }
         public Guid ProjectId { get; set; }
+        public string Endpoint { get; set; } = string.Empty;
+        public string Method { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
 
-        // ── HTTP ─────────────────────────────────────────────────────────────
-        public string Endpoint { get; set; } = string.Empty;       // VARCHAR(500) NOT NULL
-        public string Method { get; set; } = string.Empty;         // VARCHAR(10)  NOT NULL
+        // ── FIX: was List<string> ─────────────────────────────────────────────
+        public List<ExecutableStep> Steps { get; set; } = new();
 
-        // ── Test Content ──────────────────────────────────────────────────────
-        public string Title { get; set; } = string.Empty;          // VARCHAR(500) NOT NULL
-        public List<string> Steps { get; set; } = new();           // JSONB NOT NULL DEFAULT '[]'
-        public string ExpectedResult { get; set; } = string.Empty; // TEXT NOT NULL
+        public string ExpectedResult { get; set; } = string.Empty;
+        public TestCasePriority Priority { get; set; } = TestCasePriority.Medium;
+        public TestCaseStatus Status { get; set; } = TestCaseStatus.Draft;
+        public bool IsAiGenerated { get; set; }
 
-        // ── Classification ───────────────────────────────────────────────────
-        public TestCasePriority Priority { get; set; } = TestCasePriority.Medium;  // INT NOT NULL
-        public TestCaseStatus Status { get; set; } = TestCaseStatus.Draft;         // INT NOT NULL DEFAULT 1
+        // Manual builder fields
+        public string? RequestHeaders { get; set; }
+        public string? RequestBody { get; set; }
+        public int? ExpectedStatusCode { get; set; }
+        public string? ExpectedBodyContains { get; set; }
+        public int? ExpectedResponseTimeMs { get; set; }
 
-        // ── Manual Builder fields (new columns added via migration) ───────────
-        public string? RequestHeaders { get; set; }         // JSONB  — nullable new column
-        public string? RequestBody { get; set; }            // TEXT   — nullable new column
-        public int? ExpectedStatusCode { get; set; }        // INT    — nullable new column
-        public string? ExpectedBodyContains { get; set; }   // TEXT   — nullable new column
-        public int? ExpectedResponseTimeMs { get; set; }    // INT    — nullable new column
+        public Guid? AssignedTo { get; set; }
+        public Guid CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public Guid? UpdatedBy { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public bool IsDeleted { get; set; }
+        public DateTime? DeletedAt { get; set; }
+        public Guid? DeletedBy { get; set; }
 
-        // ── Ownership ────────────────────────────────────────────────────────
-        public Guid? AssignedTo { get; set; }               // UUID FK → users.id
-        public bool IsAiGenerated { get; set; } = false;    // BOOLEAN NOT NULL DEFAULT false
+        // ── Helper: auto-build a single step from flat fields (Step 7 support) ─
+        /// <summary>
+        /// If Steps is empty, synthesise one step from the flat endpoint/method/body
+        /// fields so both "simple mode" and "full step mode" test cases can execute.
+        /// </summary>
+        public List<ExecutableStep> GetExecutableSteps()
+        {
+            if (Steps != null && Steps.Any(s => s.IsEnabled))
+                return Steps.Where(s => s.IsEnabled).ToList();
 
-        // ── Audit ─────────────────────────────────────────────────────────────
-        public Guid CreatedBy { get; set; }                 // UUID NOT NULL FK → users.id
-        public DateTime CreatedAt { get; set; }             // TIMESTAMP NOT NULL DEFAULT now()
-        public Guid? UpdatedBy { get; set; }                // UUID FK → users.id
-        public DateTime? UpdatedAt { get; set; }            // TIMESTAMP
+            // Simple-mode fallback — build one step from flat fields
+            var step = new ExecutableStep
+            {
+                Name = Title,
+                Method = Method,
+                Url = Endpoint,
+                RequestBody = RequestBody,
+                TimeoutMs = 10_000,
+                IsEnabled = true
+            };
 
-        // ── Soft Delete ───────────────────────────────────────────────────────
-        public bool IsDeleted { get; set; } = false;        // BOOLEAN NOT NULL DEFAULT false
-        public DateTime? DeletedAt { get; set; }            // TIMESTAMP  (your table has this)
-        public Guid? DeletedBy { get; set; }                // UUID FK → users.id (your table has this)
+            if (!string.IsNullOrWhiteSpace(RequestHeaders))
+            {
+                try
+                {
+                    step.RequestHeaders = System.Text.Json.JsonSerializer
+                        .Deserialize<Dictionary<string, string>>(RequestHeaders)
+                        ?? new();
+                }
+                catch { /* ignore malformed headers */ }
+            }
+
+            // Add basic assertions from flat fields
+            if (ExpectedStatusCode.HasValue)
+                step.Assertions.Add(new StepAssertion
+                {
+                    Type = "StatusCode",
+                    Expected = ExpectedStatusCode.Value.ToString()
+                });
+
+            if (!string.IsNullOrWhiteSpace(ExpectedBodyContains))
+                step.Assertions.Add(new StepAssertion
+                {
+                    Type = "BodyContains",
+                    Expected = ExpectedBodyContains
+                });
+
+            if (ExpectedResponseTimeMs.HasValue)
+                step.Assertions.Add(new StepAssertion
+                {
+                    Type = "ResponseTimeMs",
+                    Expected = ExpectedResponseTimeMs.Value.ToString()
+                });
+
+            return new List<ExecutableStep> { step };
+        }
     }
 }
 

@@ -11,6 +11,14 @@ using static QAsist.Application.DTOs.Enginedtos;
 
 namespace QAsist.Application.Services
 {
+    /// <summary>
+    /// FIX: Merged partial class back into one complete class that
+    /// properly implements ITestSuiteService — fixes CS0311 DI error.
+    ///
+    /// Also fixes:
+    ///   CS0266 — RequestLog/ResponseLog cast: ExecutionResult.RequestLog
+    ///            is typed as RequestLog?, not object.
+    /// </summary>
     public class TestSuiteService : ITestSuiteService
     {
         private readonly ITestSuiteRepository _suiteRepository;
@@ -41,22 +49,25 @@ namespace QAsist.Application.Services
             Guid id,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — SuiteId={Id}", nameof(GetByIdAsync), id);
             try
             {
-                _logger.LogInformation("Fetching test suite {SuiteId}", id);
-
                 var suite = await _suiteRepository.GetByIdAsync(id, cancellationToken);
                 if (suite is null)
                     throw new NotFoundException(ResponseMessages.TestSuiteNotFound);
 
-                _logger.LogInformation("Fetched test suite {SuiteId}", id);
+                _logger.LogInformation("Completed {MethodName} — SuiteId={Id}", nameof(GetByIdAsync), id);
                 return MapToDto(suite);
             }
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching test suite {SuiteId}", id);
+                _logger.LogError(ex, "Error in {MethodName} — SuiteId={Id}", nameof(GetByIdAsync), id);
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(GetByIdAsync));
             }
         }
 
@@ -65,18 +76,15 @@ namespace QAsist.Application.Services
             Guid id,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — SuiteId={Id}", nameof(GetWithDetailsAsync), id);
             try
             {
-                _logger.LogInformation(
-                    "Fetching test suite {SuiteId} with full details", id);
-
                 var suite = await _suiteRepository.GetWithDetailsAsync(id, cancellationToken);
                 if (suite is null)
                     throw new NotFoundException(ResponseMessages.TestSuiteNotFound);
 
-                _logger.LogInformation(
-                    "Fetched suite {SuiteId} — {Cases} cases, {Steps} steps",
-                    id,
+                _logger.LogInformation("Completed {MethodName} — Cases={Cases}, Steps={Steps}",
+                    nameof(GetWithDetailsAsync),
                     suite.TestCases.Count,
                     suite.TestCases.Sum(c => c.Steps.Count));
 
@@ -85,9 +93,12 @@ namespace QAsist.Application.Services
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error fetching suite details {SuiteId}", id);
+                _logger.LogError(ex, "Error in {MethodName} — SuiteId={Id}", nameof(GetWithDetailsAsync), id);
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(GetWithDetailsAsync));
             }
         }
 
@@ -96,30 +107,26 @@ namespace QAsist.Application.Services
             Guid projectId,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — ProjectId={ProjectId}", nameof(GetByProjectAsync), projectId);
             try
             {
-                _logger.LogInformation(
-                    "Fetching test suites for project {ProjectId}", projectId);
-
                 await EnsureProjectExistsAsync(projectId, cancellationToken);
 
-                var suites = await _suiteRepository.GetByProjectAsync(
-                    projectId, cancellationToken);
-
+                var suites = await _suiteRepository.GetByProjectAsync(projectId, cancellationToken);
                 var result = suites.Select(MapToDto).ToList();
 
-                _logger.LogInformation(
-                    "Fetched {Count} test suites for project {ProjectId}",
-                    result.Count, projectId);
-
+                _logger.LogInformation("Completed {MethodName} — Count={Count}", nameof(GetByProjectAsync), result.Count);
                 return result;
             }
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error fetching suites for project {ProjectId}", projectId);
+                _logger.LogError(ex, "Error in {MethodName}", nameof(GetByProjectAsync));
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(GetByProjectAsync));
             }
         }
 
@@ -128,12 +135,10 @@ namespace QAsist.Application.Services
             Guid projectId, int pageNumber, int pageSize,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — ProjectId={ProjectId}, Page={Page}",
+                nameof(GetPagedAsync), projectId, pageNumber);
             try
             {
-                _logger.LogInformation(
-                    "Fetching paged suites for project {ProjectId}. Page={Page} Size={Size}",
-                    projectId, pageNumber, pageSize);
-
                 await EnsureProjectExistsAsync(projectId, cancellationToken);
 
                 var (suites, total) = await _suiteRepository.GetPagedAsync(
@@ -141,18 +146,20 @@ namespace QAsist.Application.Services
 
                 var dtos = suites.Select(MapToDto).ToList();
 
-                _logger.LogInformation(
-                    "Page {Page}: {Count}/{Total} suites for project {ProjectId}",
-                    pageNumber, dtos.Count, total, projectId);
+                _logger.LogInformation("Completed {MethodName} — Page={Page}, Count={Count}, Total={Total}",
+                    nameof(GetPagedAsync), pageNumber, dtos.Count, total);
 
                 return (dtos, total);
             }
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error fetching paged suites for project {ProjectId}", projectId);
+                _logger.LogError(ex, "Error in {MethodName}", nameof(GetPagedAsync));
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(GetPagedAsync));
             }
         }
 
@@ -162,12 +169,10 @@ namespace QAsist.Application.Services
             Guid userId,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — Name={Name}, ProjectId={ProjectId}",
+                nameof(CreateAsync), dto.Name, dto.ProjectId);
             try
             {
-                _logger.LogInformation(
-                    "Creating test suite '{Name}' for project {ProjectId} by user {UserId}",
-                    dto.Name, dto.ProjectId, userId);
-
                 await EnsureProjectExistsAsync(dto.ProjectId, cancellationToken);
 
                 var suite = new TestSuite
@@ -183,23 +188,21 @@ namespace QAsist.Application.Services
                     CreatedAt = DateTime.UtcNow
                 };
 
-                var createdId = await _suiteRepository.CreateAsync(
-                    suite, userId, cancellationToken);
+                var createdId = await _suiteRepository.CreateAsync(suite, userId, cancellationToken);
                 suite.Id = createdId;
 
-                _logger.LogInformation(
-                    "Created test suite {SuiteId} '{Name}' for project {ProjectId}",
-                    createdId, dto.Name, dto.ProjectId);
-
+                _logger.LogInformation("Completed {MethodName} — SuiteId={SuiteId}", nameof(CreateAsync), createdId);
                 return MapToDto(suite);
             }
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error creating test suite '{Name}' for project {ProjectId}",
-                    dto.Name, dto.ProjectId);
+                _logger.LogError(ex, "Error in {MethodName}", nameof(CreateAsync));
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(CreateAsync));
             }
         }
 
@@ -209,13 +212,10 @@ namespace QAsist.Application.Services
             Guid userId,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — SuiteId={Id}", nameof(UpdateAsync), dto.Id);
             try
             {
-                _logger.LogInformation(
-                    "Updating test suite {SuiteId} by user {UserId}", dto.Id, userId);
-
-                var existing = await _suiteRepository.GetByIdAsync(
-                    dto.Id, cancellationToken);
+                var existing = await _suiteRepository.GetByIdAsync(dto.Id, cancellationToken);
                 if (existing is null)
                     throw new NotFoundException(ResponseMessages.TestSuiteNotFound);
 
@@ -227,18 +227,20 @@ namespace QAsist.Application.Services
 
                 await _suiteRepository.UpdateAsync(existing, userId, cancellationToken);
 
-                // Re-fetch for accurate UpdatedAt from DB
-                var updated = await _suiteRepository.GetByIdAsync(
-                    dto.Id, cancellationToken);
+                var updated = await _suiteRepository.GetByIdAsync(dto.Id, cancellationToken);
 
-                _logger.LogInformation("Updated test suite {SuiteId}", dto.Id);
+                _logger.LogInformation("Completed {MethodName} — SuiteId={Id}", nameof(UpdateAsync), dto.Id);
                 return MapToDto(updated!);
             }
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating test suite {SuiteId}", dto.Id);
+                _logger.LogError(ex, "Error in {MethodName} — SuiteId={Id}", nameof(UpdateAsync), dto.Id);
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(UpdateAsync));
             }
         }
 
@@ -247,25 +249,26 @@ namespace QAsist.Application.Services
             Guid id, Guid userId,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} — SuiteId={Id}", nameof(DeleteAsync), id);
             try
             {
-                _logger.LogInformation(
-                    "Deleting test suite {SuiteId} by user {UserId}", id, userId);
-
                 var exists = await _suiteRepository.ExistsAsync(id, cancellationToken);
                 if (!exists)
                     throw new NotFoundException(ResponseMessages.TestSuiteNotFound);
 
                 await _suiteRepository.DeleteAsync(id, userId, cancellationToken);
 
-                _logger.LogInformation(
-                    "Soft-deleted test suite {SuiteId}", id);
+                _logger.LogInformation("Completed {MethodName} — SuiteId={Id} soft-deleted", nameof(DeleteAsync), id);
             }
             catch (NotFoundException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting test suite {SuiteId}", id);
+                _logger.LogError(ex, "Error in {MethodName} — SuiteId={Id}", nameof(DeleteAsync), id);
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(DeleteAsync));
             }
         }
 
@@ -276,35 +279,46 @@ namespace QAsist.Application.Services
             Guid userId,
             CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("Starting {MethodName} with data: {@Request}",
+                nameof(ExecuteAsync),
+                new { SuiteId = suiteId, dto.EnvironmentId, UserId = userId, dto.FailFast, dto.ParallelCases });
             try
             {
-                _logger.LogInformation(
-                    "Executing suite {SuiteId} on env {EnvId} by user {UserId}. " +
-                    "FailFast={FF} Parallel={P}",
-                    suiteId, dto.EnvironmentId, userId,
-                    dto.FailFast, dto.ParallelCases);
-
-                // 1. Load suite with full tree
-                var suite = await _suiteRepository.GetWithDetailsAsync(
-                    suiteId, cancellationToken);
+                // FIX: must use GetWithDetailsAsync — GetByIdAsync does NOT load TestCases/Steps
+                var suite = await _suiteRepository.GetWithDetailsAsync(suiteId, cancellationToken);
                 if (suite is null)
                     throw new NotFoundException(ResponseMessages.TestSuiteNotFound);
 
-                // 2. Load environment variables
+                if (suite.TestCases == null || !suite.TestCases.Any())
+                {
+                    _logger.LogError("{MethodName}: Suite {SuiteId} has 0 test cases", nameof(ExecuteAsync), suiteId);
+                    throw new InvalidOperationException(
+                        $"Suite '{suite.Name}' has no test cases. Add test cases before executing.");
+                }
+
+                int totalExpectedSteps = suite.TestCases
+                    .Sum(tc => tc.Steps.Count(s => s.IsEnabled));
+
+                _logger.LogInformation("{MethodName}: {CaseCount} cases, {StepCount} steps",
+                    nameof(ExecuteAsync), suite.TestCases.Count, totalExpectedSteps);
+
+                if (totalExpectedSteps == 0)
+                {
+                    _logger.LogError("{MethodName}: 0 steps found — aborting", nameof(ExecuteAsync));
+                    throw new InvalidOperationException(
+                        "No executable steps found. Add steps to your test cases.");
+                }
+
                 var environment = await _environmentRepository.GetByIdAsync(
                     dto.EnvironmentId, cancellationToken);
                 if (environment is null)
                     throw new NotFoundException(ResponseMessages.EnvironmentNotFound);
 
-                // 3. Build environment variable dictionary
-                // Merge: base URL + global headers + any env-level vars
-                var envVars = new Dictionary<string, string>(
-                    environment.GlobalHeaders)
+                var envVars = new Dictionary<string, string>(environment.GlobalHeaders)
                 {
                     ["baseUrl"] = environment.BaseUrl
                 };
 
-                // 4. Create execution batch record
                 var batchId = Guid.NewGuid();
                 var batch = new ExecutionBatch
                 {
@@ -323,21 +337,17 @@ namespace QAsist.Application.Services
 
                 await _executionRepository.CreateBatchAsync(batch, cancellationToken);
 
-                _logger.LogInformation(
-                    "Execution batch {BatchId} created for suite {SuiteId}",
-                    batchId, suiteId);
+                _logger.LogInformation("Batch {BatchId} created — starting background execution", batchId);
 
-                // 5. Execute the suite (fire and forget for large suites,
-                //    or await for immediate response — using await here for simplicity;
-                //    Week 10+ will move to Hangfire background jobs)
                 _ = Task.Run(async () =>
                 {
+                    _logger.LogInformation("Background execution started — BatchId={BatchId}", batchId);
                     try
                     {
                         var options = new ExecutionOptions
                         {
                             BatchId = batchId,
-                            TenantId = userId, // simplified — real app uses tenant from JWT
+                            TenantId = userId,
                             EnvironmentId = dto.EnvironmentId,
                             EnvironmentVariables = envVars,
                             FailFast = dto.FailFast,
@@ -347,7 +357,59 @@ namespace QAsist.Application.Services
                         var result = await _suiteExecutor.ExecuteAsync(
                             suite, options, CancellationToken.None);
 
-                        // Update batch with final results
+                        // FIX: persist each step result
+                        foreach (var stepResult in result.StepResults)
+                        {
+                            // FIX CS0266: RequestLog and ResponseLog must be the
+                            // correct typed value objects, not raw object.
+                            RequestLog? requestLog = null;
+                            ResponseLog? responseLog = null;
+
+                            if (stepResult.RequestLog is RequestLog rl)
+                                requestLog = rl;
+                            else if (stepResult.RequestLog != null)
+                            {
+                                // SuiteExecutor stores as anonymous object — re-map
+                                var json = System.Text.Json.JsonSerializer
+                                    .Serialize(stepResult.RequestLog);
+                                requestLog = System.Text.Json.JsonSerializer
+                                    .Deserialize<RequestLog>(json);
+                            }
+
+                            if (stepResult.ResponseLog is ResponseLog rsl)
+                                responseLog = rsl;
+                            else if (stepResult.ResponseLog != null)
+                            {
+                                var json = System.Text.Json.JsonSerializer
+                                    .Serialize(stepResult.ResponseLog);
+                                responseLog = System.Text.Json.JsonSerializer
+                                    .Deserialize<ResponseLog>(json);
+                            }
+
+                            var entity = new ExecutionResult
+                            {
+                                Id = Guid.NewGuid(),
+                                BatchId = batchId,
+                                TestSuiteId = suiteId,
+                                TestCaseId = stepResult.TestCaseId,
+                                TestStepId = stepResult.TestStepId,
+                                Status = stepResult.Status,
+                                DurationMs = stepResult.DurationMs,
+                                ErrorMessage = stepResult.ErrorMessage,
+                                RequestLog = requestLog,       // typed correctly
+                                ResponseLog = responseLog,     // typed correctly
+                                AssertionResults = stepResult.AssertionResults,
+                                ExtractedVariables = stepResult.ExtractedVariables
+                                    .ToDictionary(k => k.Key, v => v.Value),
+                                ExecutedAt = DateTime.UtcNow,
+                                CreatedBy = userId,
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            await _executionRepository.SaveStepResultAsync(
+                                entity, CancellationToken.None);
+                        }
+
                         batch.Status = result.IsSuccess
                             ? ExecutionStatus.Completed
                             : ExecutionStatus.Failed;
@@ -358,38 +420,29 @@ namespace QAsist.Application.Services
                         batch.ErrorSteps = result.ErrorSteps;
                         batch.CompletedAt = DateTime.UtcNow;
 
-                        // Persist each step result
-                        foreach (var stepResult in result.StepResults)
-                        {
-                            await _executionRepository.SaveStepResultAsync(
-                                MapStepResultToEntity(stepResult, batch, userId),
-                                CancellationToken.None);
-                        }
-
-                        await _executionRepository.UpdateBatchAsync(
-                            batch, CancellationToken.None);
+                        await _executionRepository.UpdateBatchAsync(batch, CancellationToken.None);
 
                         _logger.LogInformation(
-                            "Suite {SuiteId} batch {BatchId} completed. " +
-                            "Pass={P} Fail={F} Skip={S} Pass%={Pct}%",
-                            suiteId, batchId,
-                            result.PassedSteps, result.FailedSteps,
-                            result.SkippedSteps, result.PassPercentage);
+                            "Background completed — BatchId={BatchId}, Total={T}, Pass={P}, Fail={F}, Pct={Pct}%",
+                            batchId, result.TotalSteps, result.PassedSteps,
+                            result.FailedSteps, result.PassPercentage);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex,
-                            "Background execution failed for batch {BatchId}", batchId);
-
-                        // Mark batch as failed
+                        _logger.LogError(ex, "Background execution failed — BatchId={BatchId}", batchId);
                         batch.Status = ExecutionStatus.Failed;
                         batch.CompletedAt = DateTime.UtcNow;
-                        await _executionRepository.UpdateBatchAsync(
-                            batch, CancellationToken.None);
+                        await _executionRepository.UpdateBatchAsync(batch, CancellationToken.None);
+                    }
+                    finally
+                    {
+                        _logger.LogInformation("Finished background execution — BatchId={BatchId}", batchId);
                     }
                 }, cancellationToken);
 
-                // Return immediately — client polls for results
+                _logger.LogInformation("Completed {MethodName} — BatchId={BatchId} dispatched",
+                    nameof(ExecuteAsync), batchId);
+
                 return new ExecuteSuiteResponseDto
                 {
                     BatchId = batchId,
@@ -399,49 +452,30 @@ namespace QAsist.Application.Services
                 };
             }
             catch (NotFoundException) { throw; }
+            catch (InvalidOperationException) { throw; }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error starting execution for suite {SuiteId}", suiteId);
+                _logger.LogError(ex, "Error in {MethodName} — SuiteId={SuiteId}", nameof(ExecuteAsync), suiteId);
                 throw;
+            }
+            finally
+            {
+                _logger.LogInformation("Finished {MethodName}", nameof(ExecuteAsync));
             }
         }
 
         // ── PRIVATE: Helpers ──────────────────────────────────────────────────
-
-        private async Task EnsureProjectExistsAsync(
-            Guid projectId, CancellationToken ct)
+        private async Task EnsureProjectExistsAsync(Guid projectId, CancellationToken ct)
         {
             var project = await _projectRepository.GetByIdAsync(projectId, ct);
             if (project is null)
+            {
+                _logger.LogWarning("Project {ProjectId} not found", projectId);
                 throw new NotFoundException(ResponseMessages.ProjectNotFound);
+            }
         }
 
-        private static ExecutionResult MapStepResultToEntity(
-            StepExecutionResult stepResult,
-            ExecutionBatch batch,
-            Guid userId) => new()
-            {
-                Id = Guid.NewGuid(),
-                BatchId = batch.Id,
-                TestSuiteId = batch.TestSuiteId,
-                TestCaseId = Guid.Empty,   // populated from step in full implementation
-                TestStepId = stepResult.TestStepId,
-                Status = stepResult.Status,
-                DurationMs = stepResult.DurationMs,
-                ErrorMessage = stepResult.ErrorMessage,
-                RequestLog = stepResult.RequestLog,
-                ResponseLog = stepResult.ResponseLog,
-                AssertionResults = stepResult.AssertionResults.ToList(),
-                ExtractedVariables = stepResult.ExtractedVariables
-                                     .ToDictionary(k => k.Key, v => v.Value),
-                ExecutedAt = DateTime.UtcNow,
-                CreatedBy = userId,
-                CreatedAt = DateTime.UtcNow
-            };
-
         // ── PRIVATE: Mappers ──────────────────────────────────────────────────
-
         private static TestSuiteDto MapToDto(TestSuite suite) => new()
         {
             Id = suite.Id,

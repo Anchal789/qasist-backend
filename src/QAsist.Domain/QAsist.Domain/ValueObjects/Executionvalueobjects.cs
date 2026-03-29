@@ -7,6 +7,8 @@ namespace QAsist.Domain.ValueObjects
     /// NOT persisted directly — stored as JSONB array inside ExecutionResult.AssertionResults.
     /// Returned by AssertionEngine.EvaluateAll().
     /// </summary>
+    /// 
+    
     public sealed class AssertionResult
     {
         public Guid AssertionId { get; init; }
@@ -76,34 +78,7 @@ namespace QAsist.Domain.ValueObjects
     /// NOT persisted directly — used in-memory during suite execution,
     /// then mapped to ExecutionResult entity for DB storage.
     /// </summary>
-    public sealed class StepExecutionResult
-    {
-        public Guid TestStepId { get; init; }
-        public StepStatus Status { get; init; }
-        public long DurationMs { get; init; }
-
-        // ── Logs (stored as JSONB) ────────────────────────────────────────────
-        public RequestLog? RequestLog { get; init; }
-        public ResponseLog? ResponseLog { get; init; }
-
-        // ── Assertion Results ─────────────────────────────────────────────────
-        public IReadOnlyList<AssertionResult> AssertionResults { get; init; }
-            = Array.Empty<AssertionResult>();
-
-        // ── Extracted Variables ───────────────────────────────────────────────
-        /// <summary>Variables extracted from this step's response.</summary>
-        public IReadOnlyDictionary<string, string> ExtractedVariables { get; init; }
-            = new Dictionary<string, string>();
-
-        // ── Error ─────────────────────────────────────────────────────────────
-        public string? ErrorMessage { get; init; }
-
-        // ── Helpers ───────────────────────────────────────────────────────────
-        public bool IsSuccess => Status == StepStatus.Passed;
-
-        public bool HasFailedRequiredAssertion =>
-            AssertionResults.Any(a => !a.Passed && a.IsRequired);
-    }
+   
 
     /// <summary>
     /// Structured log of the outgoing HTTP request.
@@ -139,4 +114,50 @@ namespace QAsist.Domain.ValueObjects
         /// <summary>Max body size stored in logs (100KB).</summary>
         public const int MaxBodyBytes = 102_400;
     }
+
+    //public class SuiteExecutionResult
+    //{
+    //    public bool IsSuccess { get; set; }
+    //    public int TotalSteps { get; set; }
+    //    public int PassedSteps { get; set; }
+    //    public int FailedSteps { get; set; }
+    //    public int SkippedSteps { get; set; }
+    //    public int ErrorSteps { get; set; }
+    //    public double PassPercentage { get; set; }
+    //    public List<StepExecutionResult> StepResults { get; set; } = new();
+    //}
+
+    /// <summary>Result of a single executable step.</summary>
+    public class StepExecutionResult
+    {
+        public Guid TestStepId { get; set; }
+        public Guid TestCaseId { get; set; }
+        public string StepName { get; set; } = string.Empty;
+        public StepStatus Status { get; set; }
+        public long DurationMs { get; set; }
+        public string? ErrorMessage { get; set; }
+        public object? RequestLog { get; set; }
+        public object? ResponseLog { get; set; }
+        public List<AssertionResult> AssertionResults { get; set; } = new();
+        public Dictionary<string, string> ExtractedVariables { get; set; } = new();
+        public bool HasFailedRequiredAssertion =>
+            AssertionResults.Any(a => !a.Passed && a.IsRequired);
+
+        public bool IsSuccess => Status == StepStatus.Passed;
+    }
+    
+
+    /// <summary>Result of one assertion within a step.</summary>
+   
+
+    /// <summary>Options passed into SuiteExecutor.</summary>
+    //public class ExecutionOptions
+    //{
+    //    public Guid BatchId { get; set; }
+    //    public Guid TenantId { get; set; }
+    //    public Guid EnvironmentId { get; set; }
+    //    public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
+    //    public bool FailFast { get; set; }
+    //    public bool ParallelCases { get; set; }
+    //}
 }
