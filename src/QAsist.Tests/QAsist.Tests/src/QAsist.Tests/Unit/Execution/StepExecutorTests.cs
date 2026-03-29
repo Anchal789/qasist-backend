@@ -77,7 +77,8 @@ namespace QAsist.Tests.src.QAsist.Tests.Unit.Execution
                 httpClientFactory, NullLogger<StepExecutor>.Instance);
 
             _suiteExecutor = new SuiteExecutor(
-                _executor, loggerFactory, NullLogger<SuiteExecutor>.Instance);
+    httpClientFactory,
+    NullLogger<SuiteExecutor>.Instance);
         }
 
         public void Dispose() => _server.Stop();
@@ -188,7 +189,10 @@ namespace QAsist.Tests.src.QAsist.Tests.Unit.Execution
             var result = await _executor.ExecuteAsync(step, CreateContext());
 
             result.Status.Should().Be(StepStatus.Passed);
-            result.RequestLog?.Body.Should().Be("{\"name\":\"Alice\"}");
+            var requestLog = result.RequestLog as RequestLog;
+
+            requestLog.Should().NotBeNull();
+            requestLog!.Body.Should().Be("{\"name\":\"Alice\"}");
         }
 
         [Fact]
@@ -245,7 +249,8 @@ namespace QAsist.Tests.src.QAsist.Tests.Unit.Execution
             var result = await _executor.ExecuteAsync(step, ctx);
 
             result.Status.Should().Be(StepStatus.Passed);
-            result.RequestLog?.Url.Should().Contain("abc-123");
+            var requestLog = result.RequestLog as RequestLog;
+            requestLog!.Url.Should().Contain("abc-123");
         }
 
         [Fact]
@@ -265,7 +270,9 @@ namespace QAsist.Tests.src.QAsist.Tests.Unit.Execution
             result.Status.Should().Be(StepStatus.Passed);
 
             // Auth header REDACTED in log
-            result.RequestLog?.Headers
+            var requestLog = result.RequestLog as RequestLog;
+
+            requestLog!.Headers
                 .Should().ContainKey("Authorization")
                 .WhoseValue.Should().Be("[REDACTED]");
         }
